@@ -4,14 +4,14 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#0a0a0b" />
-<title>Atlas — Finance Centre</title>
+<title>Atlas FinServ — Finance Centre</title>
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="icon-192.png" />
 <link rel="apple-touch-icon" href="icon-180.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Atlas" />
+<meta name="apple-mobile-web-app-title" content="Atlas FinServ" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -154,6 +154,16 @@ section.on{display:block}
 .center-txt{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
 
 .lockwrap{max-width:420px;margin:40px auto;text-align:center}
+/* account gate (sign-in / approval / restore) */
+#gate{position:fixed;inset:0;z-index:100001;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px 16px;overflow-y:auto}
+#gate .gcard{max-width:380px;width:100%;margin:auto;text-align:center;background:linear-gradient(160deg,var(--card),var(--bg2));border:1px solid var(--line2);border-radius:22px;padding:28px 22px}
+#gate h3{font-family:var(--serif);font-size:22px;margin-bottom:8px}
+#gate .field{text-align:left}
+#gate .gp{font-size:13px;margin-bottom:16px;line-height:1.55}
+#gate .gm{font-size:12px;min-height:16px;margin:2px 0 12px}
+#gate .gw{width:100%;margin-bottom:10px;justify-content:center}
+#gate .btn:disabled{opacity:.45;cursor:default}
+#gate .glink{font-size:12.5px;color:var(--gold);cursor:pointer;margin-top:8px}
 .copybtn{cursor:pointer;color:var(--gold);font-size:12px;font-weight:600;border:none;background:none;font-family:var(--sans)}
 /* NUMERIC KEYPAD */
 .numpad{display:flex;flex-direction:column;align-items:center;gap:18px}
@@ -248,7 +258,7 @@ section.on{display:block}
 
 <div class="topbar">
   <button class="burger" onclick="toggleNav()">☰</button>
-  <div class="logo">A</div><b>Atlas</b>
+  <div class="logo">A</div><b>Atlas FinServ</b>
   <div class="syncpill" id="syncPill" onclick="Cloud.openPanel()">○</div>
 </div>
 <div class="scrim" id="scrim" onclick="toggleNav()"></div>
@@ -257,7 +267,7 @@ section.on{display:block}
   <aside class="side" id="side">
     <div class="brand">
       <div class="logo">A</div>
-      <div><b>Atlas</b><small>Finance Centre</small></div>
+      <div><b>Atlas FinServ</b><small>Finance Centre</small></div>
     </div>
     <nav class="nav" id="nav">
       <a data-v="home" class="on"><span class="ic">✦</span> Home</a>
@@ -288,10 +298,10 @@ section.on{display:block}
       <a data-v="loginvault"><span class="ic">⚿</span> Login Vault</a>
       <div class="sep">Data</div>
       <a id="lockBtn"><span class="ic">⚷</span> App Lock</a>
-      <a id="cloudBtn"><span class="ic">☁</span> Cloud Sync <span class="cdot" id="cloudDot"></span></a>
+      <a id="cloudBtn"><span class="ic">☁</span> Account <span class="cdot" id="cloudDot"></span></a>
       <a id="backupBtn"><span class="ic">⤓</span> Backup / Restore</a>
     </nav>
-    <div style="margin-top:auto;padding:16px 12px 2px;color:var(--muted);font-size:10px;letter-spacing:1.5px;cursor:pointer" onclick="showWhatsNew(true)">ATLAS · <span id="verLbl"></span> · what's new</div>
+    <div style="margin-top:auto;padding:16px 12px 2px;color:var(--muted);font-size:10px;letter-spacing:1.5px;cursor:pointer" onclick="showWhatsNew(true)">Atlas FinServ · <span id="verLbl"></span> · what's new</div>
     <div style="padding:2px 12px 14px;color:var(--muted);font-size:8px;letter-spacing:.4px;opacity:.4">developed by EyeJayYou</div>
   </aside>
 
@@ -315,7 +325,7 @@ section.on{display:block}
 "use strict";
 /* ============================================================
    ATLAS — single-file finance command centre
-   localStorage data model · AES-GCM vault · PWA
+   Supabase cloud data model · AES-GCM vault · PWA
    ============================================================ */
 
 const LS_KEY='atlasDB_v2';
@@ -345,7 +355,7 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clea
 /* ---------- SEED (reconstructed to match the PDF totals) ---------- */
 function seed(){
   return {
-    profile:{name:'Atlas',business:''},
+    profile:{name:'Atlas FinServ',business:''},
     income:{monthly:0, label:'take-home / drawings'},
     plan:{goalContribution:0, extraRepayment:0, method:'avalanche'},
     loans:[],
@@ -370,8 +380,13 @@ function seed(){
   };
 }
 
-let DB = load();
-function load(){try{const r=localStorage.getItem(LS_KEY);return r?JSON.parse(r):seed();}catch(e){return seed();}}
+/* Data lives only in the user's Supabase account (see CLOUD below). DB starts empty
+   and is filled once the signed-in, approved account's row is loaded.
+   LEGACY_RAW is the pre-cloud copy this device kept in localStorage — read once so the
+   migration gate can back it up / restore it, then deleted after a confirmed cloud save. */
+let DB = seed();
+const LEGACY_RAW=(()=>{try{const r=localStorage.getItem(LS_KEY);if(!r)return null;const d=JSON.parse(r);return d&&typeof d==='object'?r:null;}catch(e){return null;}})();
+function upgradeDB(){
 if(!DB.receivables)DB.receivables=[];
 if(!DB.expenses)DB.expenses=[];
 if(!DB.nwHistory)DB.nwHistory=[];
@@ -406,11 +421,11 @@ if(!DB.people){
   // banks-only stay in DB.loans; individuals now live in DB.people
   DB.loans=(DB.loans||[]).filter(l=>!l.relationship);
   DB.receivables=[];
-  save();
 }
 if(!DB.people)DB.people=[];
-function saveLocal(){try{localStorage.setItem(LS_KEY,JSON.stringify(DB));return true;}catch(e){return false;}}
-function save(){const ok=saveLocal();try{if(typeof Cloud!=='undefined')Cloud.touch();}catch(e){}return ok;}
+}
+upgradeDB();
+function save(){try{if(typeof Cloud!=='undefined')Cloud.touch();}catch(e){}return true;}
 function uid(){return 'x'+Math.random().toString(36).slice(2,9);}
 /* ---- INDIVIDUALS LEDGER helpers ---- */
 function pNet(p){return (p.entries||[]).reduce((s,e)=>s+(e.dir==='out'?e.amount:-e.amount),0);} // >0 they owe me · <0 I owe them
@@ -628,7 +643,7 @@ function vHome(){
 
   const lastBk=DB.meta&&DB.meta.lastBackup;const bkDays=lastBk?-daysTo(lastBk.slice(0,10)):null;
   if(!lastBk||bkDays>14){const bk=el('div','card');bk.style.marginTop='16px';bk.style.borderColor='rgba(217,180,106,.35)';
-    bk.innerHTML=`<div class="insight" style="margin:0"><div class="n">⤓</div><div><h4>Back up your data</h4><p>${lastBk?`Last backup was ${bkDays} days ago.`:'You haven\'t backed up yet.'} Everything lives only on this device — export a copy to stay safe.</p></div></div>
+    bk.innerHTML=`<div class="insight" style="margin:0"><div class="n">⤓</div><div><h4>Back up your data</h4><p>${lastBk?`Last backup was ${bkDays} days ago.`:'You haven\'t backed up yet.'} Your data is in the cloud — keep an offline copy too, just in case.</p></div></div>
       <div style="margin-top:12px"><button class="btn sm gold" onclick="doBackup()">Back up now</button></div>`;
     main.appendChild(bk);}
 
@@ -1000,7 +1015,7 @@ function saveLoan(){
 function fxSettings(){
   const r=DB.fx.rates;
   modal('Exchange rates',`
-    <p class="muted" style="font-size:13px;margin-bottom:14px">Loans and people can each be held in ₹, AED or SAR. These rates are what Atlas uses to fold foreign balances into ₹ totals — net worth, the repayment plan, business vs personal. Set them to the rate you want your books held at; nothing is fetched online.</p>
+    <p class="muted" style="font-size:13px;margin-bottom:14px">Loans and people can each be held in ₹, AED or SAR. These rates are what Atlas FinServ uses to fold foreign balances into ₹ totals — net worth, the repayment plan, business vs personal. Set them to the rate you want your books held at; nothing is fetched online.</p>
     <div class="field"><label>1 AED = ₹</label><input id="fxAED" type="number" step="0.01" inputmode="decimal" value="${r.AED}"></div>
     <div class="field"><label>1 SAR = ₹</label><input id="fxSAR" type="number" step="0.01" inputmode="decimal" value="${r.SAR}"></div>
     <p class="muted" style="font-size:11.5px;margin:2px 0 14px">${DB.fx.updated?'Last set '+new Date(DB.fx.updated).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})+'.':'Still on the default placeholders — set your own.'}</p>
@@ -1583,16 +1598,17 @@ function saveClaim(id){const c=DB.chits.find(x=>x.id===id);const amt=+$('#cla').
 
 /* ---- WHAT'S NEW ---- */
 const CHANGELOG=[
+ {v:'1.22.0',notes:['<b>Atlas FinServ is now cloud-based.</b> Your data lives in your own secure Atlas FinServ account instead of only on this phone, so it is safe if you lose or change devices. Sign in with your email and password.','New accounts are reviewed before they can be used.','Forgot your password? Tap “Forgot password?” on the sign-in screen and we\'ll email you a code to set a new one.','Your Card and Login Vaults stay encrypted with your PIN — the server only ever stores scrambled data.','Atlas FinServ now needs an internet connection to open.']},
  {v:'1.19.6',notes:[
    'Each subscription and bill now has a ⏰ button — tap it to drop that one item’s due date straight into your phone’s calendar with alerts 2 days before, 1 day before, and on the day. (The Cash-Flow Forecast still has the “add everything” reminder button too.)'
  ]},
  {v:'1.19.5',notes:[
-   '<b>Subscriptions now handle variable bills</b> — added a “Monthly bill — amount varies” option for things like electricity and Wi-Fi that fall due on a fixed date each month but for a different amount. Enter a typical estimate (shown with a ~) and Atlas still forecasts and reminds you on the due date.',
+   '<b>Subscriptions now handle variable bills</b> — added a “Monthly bill — amount varies” option for things like electricity and Wi-Fi that fall due on a fixed date each month but for a different amount. Enter a typical estimate (shown with a ~) and Atlas FinServ still forecasts and reminds you on the due date.',
    'Brought back a <b>debit-day picker</b> so you choose exactly which day of the month a subscription or bill is due. The month picker still appears only for yearly items.'
  ]},
  {v:'1.19.4',notes:[
    '<b>Smarter Add Card form</b> — the card number now spaces itself into groups of four as you type, the expiry auto-formats to MM/YY, and the network is a dropdown that auto-detects Visa / Mastercard / Amex / RuPay / Diners / Discover from the number (you can still override). A live card preview updates as you type.',
-   '<b>Scan a card</b> — tap “📷 Scan card” to snap your card with the camera; Atlas reads the number and expiry for you (best-effort — always double-check, and the photo is never stored).',
+   '<b>Scan a card</b> — tap “📷 Scan card” to snap your card with the camera; Atlas FinServ reads the number and expiry for you (best-effort — always double-check, and the photo is never stored).',
    'Dialogs no longer close when you tap the dimmed area behind them — so a stray tap won’t discard what you were typing. Close with the × button (the back gesture still works).',
    '<b>Simpler subscriptions</b> — no more “day of the month” field. Monthly subs just say “monthly”; yearly subs let you pick the month and show “yearly · &lt;Month&gt;”.',
    'Chits no longer count the current month as paid until the pay-day has actually arrived — your paid-month count is now accurate mid-month.'
@@ -1604,10 +1620,10 @@ const CHANGELOG=[
  {v:'1.18.2',notes:['When a new version is ready, a gold banner slides up from the bottom — tap <b>Update now</b> to reload instantly, or dismiss it and update later.']},
  {v:'1.18.1',notes:['Maintenance release — service worker cache refreshed and version bumped to ensure all devices pull the latest build.']},
  {v:'1.17.2',notes:['Swiping back (or the system back gesture) no longer closes the app. It now closes an open dialog or the menu, or returns you to Home — so you won’t lose your place by accident. To actually exit, use your phone’s app switcher.']},
- {v:'1.17.0',notes:['<b>Due-date reminders</b> — in Cash-Flow Forecast, tap “⏰ Add reminders to calendar” and Atlas drops all your chits, EMIs, card bills, subscriptions and renewals into your phone calendar, each with alerts <b>2 days before, 1 day before, and on the day</b>. Your calendar then notifies you even when Atlas is closed.']},
+ {v:'1.17.0',notes:['<b>Due-date reminders</b> — in Cash-Flow Forecast, tap “⏰ Add reminders to calendar” and Atlas FinServ drops all your chits, EMIs, card bills, subscriptions and renewals into your phone calendar, each with alerts <b>2 days before, 1 day before, and on the day</b>. Your calendar then notifies you even when Atlas FinServ is closed.']},
  {v:'1.16.0',notes:['<b>Swipe from the left edge</b> to open the menu (and swipe left to close it). The browser’s back-swipe is disabled so it won’t leave the app.']},
  {v:'1.15.1',notes:['Renamed to “Finance Centre”.','Pinch/double-tap zoom is now disabled for a fixed, app-like feel — screens scroll instead of zooming.','EMIs and recurring subscriptions are now tidy cards on mobile (no more sideways scrolling).','Backups now save as a single file (atlas-backup.json) that replaces the old one instead of piling up.']},
- {v:'1.15.0',notes:['<b>Cash-Flow Forecast</b> — a 60-day projection of money in vs out with a running balance, and a warning if you’ll dip into the red before a payday. Set your “cash on hand” and payday from the screen.','<b>Auto-backup</b> — turn on weekly or daily and Atlas downloads a backup on open; keep your Downloads folder syncing to Drive and it lands in the cloud.','<b>Vehicles now count toward Net Worth</b> — add a market value in Garage.','<b>Multiple income sources</b> — track shop drawings, rent, salary separately; they total into your monthly income.','<b>Spending budgets</b> — set a monthly cap per category and see progress bars with a warning as you approach.','<b>Goals</b> now show a projected finish date and an optional target date.','<b>Zakat hawl tracker</b> — counts down the lunar year to when your Zakat is due.','<b>Prepayment calculator</b> on bank loans — see the interest you’d save before paying.','Smarter Home nudges (cash dips, bills due, renewals, budget overspend).']},
+ {v:'1.15.0',notes:['<b>Cash-Flow Forecast</b> — a 60-day projection of money in vs out with a running balance, and a warning if you’ll dip into the red before a payday. Set your “cash on hand” and payday from the screen.','<b>Auto-backup</b> — turn on weekly or daily and Atlas FinServ downloads a backup on open; keep your Downloads folder syncing to Drive and it lands in the cloud.','<b>Vehicles now count toward Net Worth</b> — add a market value in Garage.','<b>Multiple income sources</b> — track shop drawings, rent, salary separately; they total into your monthly income.','<b>Spending budgets</b> — set a monthly cap per category and see progress bars with a warning as you approach.','<b>Goals</b> now show a projected finish date and an optional target date.','<b>Zakat hawl tracker</b> — counts down the lunar year to when your Zakat is due.','<b>Prepayment calculator</b> on bank loans — see the interest you’d save before paying.','Smarter Home nudges (cash dips, bills due, renewals, budget overspend).']},
  {v:'1.14.0',notes:['Cards redesigned like a card-bill app: each card shows the current <b>bill amount, due date and statement date</b>, with the total due across all cards at the top.','<b>Update bill</b> and <b>Record payment</b> are now one tap — partial payments are supported, and paying lowers the card balance automatically.','EMIs now carry a real <b>next due date</b> and a “Paid” button to tick off each month.','Subscriptions can be set to <b>Pay as you go</b> for usage-based services (cloud, AI credits, etc.) — these stay out of your fixed monthly total; log each charge as it happens.','Every date field uses a calendar picker.']},
  {v:'1.13.0',notes:['Debts, Loans and “Owed to Me” are now one screen: <b>Debts &amp; Dues</b>, split into two clear sections — <b>Loans from Banks</b> and <b>Individuals</b>.','Each individual now has a single running history. Log money you gave or got, each with a date and payment mode, and the app shows one net balance — whether they owe you or you owe them.','Your old friend/family loans and “owed to me” entries were merged into these per-person histories automatically.']},
  {v:'1.12.2',notes:['App Lock no longer nags you on every refresh. Once you unlock, you stay unlocked until you actually close the app — reloading the page keeps you in. Fully closing and reopening asks again.']},
@@ -1692,7 +1708,7 @@ function vCal(){
   main.innerHTML=header('Cash-Flow Forecast','Next 60 days · projected balance',`<span class="chip" onclick="exportReminders()" style="cursor:pointer">⏰ Reminders</span> <span class="chip gold" onclick="setCash()" style="cursor:pointer">⚙ Cash on hand</span>`);
   const rem=el('div','card');
   rem.innerHTML=`<div class="lbl">Due-date reminders</div>
-    <div class="muted" style="font-size:12.5px;margin:6px 0 12px">Atlas can't ring alarms on its own when it's closed, but it can drop all your due dates into your phone's calendar with alerts <b>2 days before, 1 day before, and on the day</b>. Your calendar then notifies you reliably — even when Atlas isn't open.</div>
+    <div class="muted" style="font-size:12.5px;margin:6px 0 12px">Atlas FinServ can't ring alarms on its own when it's closed, but it can drop all your due dates into your phone's calendar with alerts <b>2 days before, 1 day before, and on the day</b>. Your calendar then notifies you reliably — even when Atlas FinServ isn't open.</div>
     <button class="btn gold sm" onclick="exportReminders()">⏰ Add reminders to calendar</button>`;
   main.appendChild(rem);
   const f=forecast(60);
@@ -2203,8 +2219,8 @@ async function bioRegister(){
   try{
     const cred=await navigator.credentials.create({publicKey:{
       challenge:crypto.getRandomValues(new Uint8Array(32)),
-      rp:{name:'Atlas'},
-      user:{id:crypto.getRandomValues(new Uint8Array(16)),name:'atlas',displayName:'Atlas'},
+      rp:{name:'Atlas FinServ'},
+      user:{id:crypto.getRandomValues(new Uint8Array(16)),name:'atlas',displayName:'Atlas FinServ'},
       pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
       authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required'},
       timeout:60000,attestation:'none'
@@ -2268,7 +2284,7 @@ function showAppLock(){
   if(bio){
     d.innerHTML=`<div class="card" style="max-width:340px;width:100%;text-align:center;padding:28px 24px">
       <div id="bioIcon" style="font-size:52px;margin-bottom:6px;cursor:pointer" onclick="tryBio(false)">☝</div>
-      <h3 style="font-family:var(--serif);font-size:22px">Atlas locked</h3>
+      <h3 style="font-family:var(--serif);font-size:22px">Atlas FinServ locked</h3>
       <p id="lockMsg" class="muted" style="margin:6px 0 20px;font-size:13px">Tap to unlock with fingerprint</p>
       <button id="bioBtn" class="btn gold" style="width:100%" onclick="tryBio(false)">☝ Unlock with fingerprint</button>
       <div id="pinArea" style="display:none;margin-top:20px">${npHTML('lock')}${npErrHTML('lock')}</div>
@@ -2279,7 +2295,7 @@ function showAppLock(){
   }else{
     d.innerHTML=`<div class="card" style="max-width:340px;width:100%;text-align:center;padding:28px 24px">
       <div style="font-size:40px;margin-bottom:10px">⚷</div>
-      <h3 style="font-family:var(--serif);font-size:22px">Atlas locked</h3>
+      <h3 style="font-family:var(--serif);font-size:22px">Atlas FinServ locked</h3>
       <p class="muted" style="margin:6px 0 22px;font-size:13px">Enter your 4-digit PIN</p>
       ${npHTML('lock')}
       ${npErrHTML('lock')}
@@ -2701,13 +2717,13 @@ function openBackup(){
   const lb=DB.meta&&DB.meta.lastBackup;const bkDays=lb?-daysTo(lb.slice(0,10)):null;
   const freq=DB.meta&&DB.meta.autoBackup||'off';
   modal('Backup &amp; Restore',`
-    <p class="muted" style="font-size:13px;margin-bottom:14px">Your data lives only in this browser. A JSON backup keeps it safe — the vault stays AES-encrypted inside it. Backups save as <b>atlas-backup.json</b> (same name each time, so it replaces the old one rather than piling up). ${lb?`Last backup ${bkDays===0?'today':bkDays+' day'+(bkDays===1?'':'s')+' ago'}.`:'You haven\'t backed up yet.'}</p>
+    <p class="muted" style="font-size:13px;margin-bottom:14px">Your data is stored in your Atlas FinServ cloud account. A JSON backup is an extra copy you keep yourself — the vault stays AES-encrypted inside it. Backups save as <b>atlas-backup.json</b> (same name each time, so it replaces the old one rather than piling up). Restoring a file replaces what's in your account. ${lb?`Last backup ${bkDays===0?'today':bkDays+' day'+(bkDays===1?'':'s')+' ago'}.`:'You haven\'t backed up yet.'}</p>
     <button class="btn gold" style="width:100%;margin-bottom:10px" onclick="doBackup()">⤓ Back up now</button>
     <div class="field"><label>Auto-backup reminder &amp; export</label><select id="bkFreq" onchange="setAutoBackup(this.value)">
       <option value="off" ${freq==='off'?'selected':''}>Off</option>
       <option value="weekly" ${freq==='weekly'?'selected':''}>Weekly</option>
       <option value="daily" ${freq==='daily'?'selected':''}>Daily</option></select></div>
-    <p class="muted" style="font-size:11.5px;margin:2px 0 12px">When due, Atlas auto-downloads a backup file on open. On Android, keep your <b>Downloads</b> folder syncing to Google Drive (Drive app → Backup) and the copy lands in the cloud automatically.</p>
+    <p class="muted" style="font-size:11.5px;margin:2px 0 12px">When due, Atlas FinServ auto-downloads a backup file on open.</p>
     <button class="btn" style="width:100%" onclick="document.getElementById('fileIn').click()">⤒ Restore from file</button>`);
 }
 function setAutoBackup(v){DB.meta=DB.meta||{};DB.meta.autoBackup=v;save();toast(v==='off'?'Auto-backup off':'Auto-backup: '+v);}
@@ -2726,12 +2742,12 @@ function maybeAutoBackup(){
 }
 $('#fileIn').addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;const r=new FileReader();
-  r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.loans||!d.cards)throw 0;DB=d;save();VAULT=null;MASTER_KEY=null;closeModal();render();toast('Restored — unlock vault if needed');}catch(err){toast('Invalid backup file');}};
+  r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.loans||!d.cards)throw 0;if(!confirm('Replace everything in your account with this backup?'))return;const keep=DB.meta&&DB.meta.cloudRestoreDone;DB=d;upgradeDB();DB.meta.cloudRestoreDone=keep||new Date().toISOString();save();VAULT=null;MASTER_KEY=null;closeModal();render();toast('Restored — unlock vault if needed');}catch(err){toast('Invalid backup file');}};
   r.readAsText(f);e.target.value='';
 });
 
 /* PWA: register service worker + notify user when a new version is ready */
-const APP_VERSION='1.21.0';
+const APP_VERSION='1.22.0';
 let _swWaiting=null;
 function doUpdate(){if(_swWaiting){_swWaiting.postMessage('SKIP_WAITING');}else{location.reload();}}
 function dismissUpdate(){document.getElementById('updateBanner').classList.remove('show');}
@@ -2760,20 +2776,39 @@ document.addEventListener('contextmenu',function(e){if(!e.target.closest('input,
 
 
 /* ============================================================
-   CLOUD SYNC — Supabase (one JSON blob per user)
-   The entire DB object syncs as a single row. The vault stays
-   AES-GCM encrypted inside it, so the server only ever holds
-   ciphertext for cards and logins.
+   CLOUD — Supabase accounts (email + password), owner-approved
+   The entire DB object lives as a single row in atlas_state and
+   is only held in memory on the device. The vault stays AES-GCM
+   encrypted inside it, so the server only ever holds ciphertext
+   for cards and logins.
+
+   Flow on open:
+     legacy local data, no backup yet → migration gate (forced backup)
+     no session / pre-cloud session   → sign in / create account / forgot password
+     signed in, not approved          → waiting screen (owner gets an email)
+     approved, first cloud login      → one-time restore (this device / file / cloud)
+     approved                         → app, cloud-only from here on
    ============================================================ */
 const SB_URL = 'https://jsyneevpqafuveaninxm.supabase.co';
 const SB_KEY = 'sb_publishable_vOqZyaK3OQPuFJdAD-TAMA_iTnZEzGc';
-const CLOUD_META = 'atlasCloud_v1';
+const CLOUD_META = 'atlasCloud_v1';      // pre-cloud sync bookkeeping, removed after migration
+const AUTH_V2 = 'atlasAuthV2';           // user id that signed in through the new flow on this device
+const MIG_STAGE = 'atlasMigStage';       // 'backedup' once the forced backup was taken
+const PW_MIN = 8;
 
 var Cloud = (function () {
   let sb = null, user = null, state = 'off', busy = false, timer = null, lastErr = '', booted = false;
+  let ready = false;                      // DB holds this account's cloud data
+  let rev = 0, dirty = false, lastSync = null, lastSig = '';
+  let legacy = LEGACY_RAW;                // pre-cloud copy still on this device
+  let recovering = false;                 // mid password-reset: don't route on SIGNED_IN
+  let notified = false, gateBackupTaken = false;
 
-  const meta = () => { try { return JSON.parse(localStorage.getItem(CLOUD_META) || '{}'); } catch (e) { return {}; } };
-  const setMeta = o => { try { localStorage.setItem(CLOUD_META, JSON.stringify(Object.assign(meta(), o))); } catch (e) {} };
+  const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  const lsDel = k => { try { localStorage.removeItem(k); } catch (e) {} };
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const val = id => ((document.getElementById(id) || {}).value || '');
   const device = () => /Android/i.test(navigator.userAgent) ? 'Android' : /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'iPhone' : 'Desktop';
   const ago = iso => {
     if (!iso) return 'never';
@@ -2790,228 +2825,449 @@ var Cloud = (function () {
     for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
     return str.length + '.' + h.toString(36);
   }
-  function localIsEmpty() {
-    const n = ['loans','cards','emis','subs','assets','goals','people','expenses','chits','gold','cars','renewals']
-      .reduce((t, k) => t + ((DB[k] || []).length), 0);
-    return n === 0 && !(DB.income && DB.income.monthly) && !DB.vaultEnc;
+  function countItems(d) {
+    return ['loans','cards','emis','subs','assets','goals','people','expenses','chits','gold','cars','renewals']
+      .reduce((t, k) => t + (((d || {})[k]) || []).length, 0);
   }
+  function isEmpty(d) { return !d || (countItems(d) === 0 && !(d.income && d.income.monthly) && !d.vaultEnc); }
+  function legacyData() { try { return legacy ? JSON.parse(legacy) : null; } catch (e) { return null; } }
 
   /* keep the shape intact after adopting a cloud copy */
   function normalise() {
+    upgradeDB();
     ['loans','cards','emis','subs','assets','goals','vacations','cars','lifestyle','expenses',
      'nwHistory','sinking','gold','chits','renewals','receivables','people'].forEach(k => { if (!DB[k]) DB[k] = []; });
-    if (!DB.profile) DB.profile = { name: 'Atlas', business: '' };
+    if (!DB.profile) DB.profile = { name: 'Atlas FinServ', business: '' };
     if (!DB.income)  DB.income  = { monthly: 0, label: 'take-home / drawings' };
     if (!DB.plan)    DB.plan    = { goalContribution: 0, extraRepayment: 0, method: 'avalanche' };
-    if (!DB.meta)    DB.meta    = { lastSeenVersion: APP_VERSION };
+    if (!DB.meta)    DB.meta    = { lastSeenVersion: null };
     if (!DB.fx)      DB.fx      = { base: 'INR', rates: {}, updated: null };
     DB.fx.rates = Object.assign({}, FX_DEFAULT, DB.fx.rates || {}); DB.fx.rates.INR = 1;
   }
 
   function setState(s, err) { state = s; lastErr = err || ''; paint(); }
-
   function paint() {
-    const m = meta();
     const look = {
-      off:      ['○', 'Local only', ''],
-      syncing:  ['⟳', 'Syncing…',   'sync'],
-      ok:       ['☁', 'Synced ' + ago(m.last), 'ok'],
+      off:      ['○', 'Signed out', ''],
+      syncing:  ['⟳', 'Saving…',    'sync'],
+      ok:       ['☁', 'Saved ' + ago(lastSync), 'ok'],
       dirty:    ['◌', 'Pending…',   'warn'],
-      offline:  ['⚡', 'Offline',    'warn'],
+      offline:  ['⚡', 'Offline — not saved yet', 'warn'],
       conflict: ['⚠', 'Conflict',   'err'],
-      err:      ['⚠', 'Sync error', 'err']
-    }[state] || ['○', 'Local only', ''];
+      err:      ['⚠', 'Save error', 'err']
+    }[state] || ['○', 'Signed out', ''];
     const dot = document.getElementById('cloudDot');
     if (dot) { dot.className = 'cdot ' + look[2]; dot.title = look[1]; }
     const pill = document.getElementById('syncPill');
     if (pill) { pill.textContent = look[0]; pill.className = 'syncpill ' + look[2]; }
   }
 
-  /* ---------- sync ---------- */
-  function touch() {
-    const s = sig();
-    if (meta().sig === s) { if (state === 'dirty') setState(user ? 'ok' : 'off'); return; }
-    setMeta({ dirty: true });
-    if (!user) { paint(); return; }
-    setState('dirty');
-    clearTimeout(timer);
-    timer = setTimeout(push, 2500);
+  /* ---------- full-screen gate (blocks the app until the account is ready) ---------- */
+  function gate(html) {
+    let g = document.getElementById('gate');
+    if (!g) { g = document.createElement('div'); g.id = 'gate'; document.body.appendChild(g); }
+    g.innerHTML = `<div class="gcard"><div class="logo" style="margin:0 auto 14px">A</div>${html}</div>`;
+    document.body.classList.add('gated');
+  }
+  function ungate() { const g = document.getElementById('gate'); if (g) g.remove(); document.body.classList.remove('gated'); }
+  const gmsg = (t, bad) => { const m = document.getElementById('gMsg'); if (m) { m.textContent = t; m.style.color = bad ? 'var(--red)' : ''; } };
+  const gbusy = on => document.querySelectorAll('#gate button').forEach(b => { b.disabled = on; });
+  function scrLoading(t) { gate(`<h3>Atlas FinServ</h3><p class="muted gp">${esc(t || 'Loading…')}</p>`); }
+  function scrError(t) {
+    gate(`<h3>Can't reach Atlas FinServ</h3>
+      <p class="muted gp">${esc(t)}</p>
+      ${legacy ? '<p class="muted gp" style="font-size:12px">Your older data is still safe on this device.</p>' : ''}
+      <button class="btn gold gw" onclick="Cloud.route()">Try again</button>
+      <button class="btn gw" onclick="Cloud.signOut()">Sign out</button>`);
   }
 
-  async function push(force) {
-    if (!user || busy) return;
+  /* step 0 — forced backup + sign-out of the pre-cloud setup */
+  function scrMigrate() {
+    const d = legacyData(), n = countItems(d);
+    gate(`<h3>Atlas FinServ is moving to the cloud</h3>
+      <p class="muted gp">Atlas FinServ now keeps your data in a secure cloud account instead of on this phone. Before we switch, save a backup of everything on this device${n ? ` (${n} item${n === 1 ? '' : 's'})` : ''}.</p>
+      <p class="muted gp" style="font-size:12px">Your data stays on this device until it has been safely restored to your new account — nothing is deleted now.</p>
+      <button class="btn gold gw" onclick="Cloud.migBackup()">⤓ Download my backup</button>
+      <p id="gMsg" class="muted gm"></p>
+      <button class="btn gw" id="gNext" ${gateBackupTaken ? '' : 'disabled'} onclick="Cloud.migContinue()">I've saved it — continue</button>`);
+  }
+  function migBackup() {
+    const d = legacyData(); if (!d) return;
+    const blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'atlas-backup-' + new Date().toISOString().slice(0, 10) + '.json'; a.click();
+    gateBackupTaken = true;
+    gmsg('Backup downloaded. On iPhone, tap "Save to Files" if asked. Then continue.');
+    const b = document.getElementById('gNext'); if (b) b.disabled = false;
+  }
+  async function migContinue() {
+    if (!gateBackupTaken) return;
+    lsSet(MIG_STAGE, 'backedup');
+    lsDel(CLOUD_META);
+    if (sb && user) { try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {} user = null; }
+    scrAuth('in');
+  }
+
+  /* step 1 — sign in / create account / forgot password */
+  function scrAuth(mode) {
+    const up = mode === 'up';
+    gate(`<h3>${up ? 'Create your account' : 'Sign in to Atlas FinServ'}</h3>
+      <p class="muted gp">${up ? 'New accounts are reviewed before they can be used. You\'ll be able to bring your data across once approved.' : 'Use the email and password for your Atlas FinServ account.'}</p>
+      <div class="field"><label>Email</label><input id="gEmail" type="email" autocomplete="email" placeholder="you@example.com" /></div>
+      <div class="field"><label>Password</label><input id="gPass" type="password" autocomplete="${up ? 'new-password' : 'current-password'}" placeholder="${up ? 'At least ' + PW_MIN + ' characters' : '••••••••'}" /></div>
+      ${up ? '<div class="field"><label>Confirm password</label><input id="gPass2" type="password" autocomplete="new-password" /></div>' : ''}
+      <p id="gMsg" class="muted gm"></p>
+      <button class="btn gold gw" onclick="Cloud.doAuth('${up ? 'up' : 'in'}')">${up ? 'Create account' : 'Sign in'}</button>
+      ${up ? '' : '<p class="glink" onclick="Cloud.scrForgot()">Forgot password?</p>'}
+      <p class="glink" onclick="Cloud.scrAuth('${up ? 'in' : 'up'}')">${up ? 'Already have an account? Sign in' : 'New here? Create an account'}</p>`);
+  }
+  async function doAuth(mode) {
+    const email = val('gEmail').trim().toLowerCase(), pw = val('gPass');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return gmsg('Enter a valid email address.', true);
+    if (mode === 'up') {
+      if (pw.length < PW_MIN) return gmsg(`Use a password of at least ${PW_MIN} characters.`, true);
+      if (pw !== val('gPass2')) return gmsg('The passwords don\'t match.', true);
+    } else if (!pw) return gmsg('Enter your password.', true);
+    gbusy(true); gmsg(mode === 'up' ? 'Creating account…' : 'Signing in…');
+    try {
+      const { data, error } = mode === 'up'
+        ? await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.origin + location.pathname } })
+        : await sb.auth.signInWithPassword({ email, password: pw });
+      if (error) { gbusy(false); return gmsg(friendly(error), true); }
+      if (mode === 'up' && !data.session) return scrConfirm(email);
+      lsSet(AUTH_V2, data.user.id);
+      // onAuthStateChange routes from here
+    } catch (e) { gbusy(false); gmsg(e.message || 'Something went wrong.', true); }
+  }
+  function friendly(e) {
+    const m = (e && e.message) || '';
+    if (/invalid login/i.test(m)) return 'Wrong email or password.';
+    if (/email not confirmed/i.test(m)) return 'Confirm your email first — tap the link we sent you, then sign in.';
+    if (/already registered/i.test(m)) return 'That email already has an account — sign in instead.';
+    if (/rate limit|too many/i.test(m)) return 'Too many attempts — wait a few minutes and try again.';
+    return m || 'Something went wrong.';
+  }
+  function scrConfirm(email) {
+    gate(`<h3>Check your email</h3>
+      <p class="muted gp">We sent a confirmation link to <b style="color:var(--txt)">${esc(email)}</b>. Tap it, then come back here and sign in.</p>
+      <button class="btn gold gw" onclick="Cloud.scrAuth('in')">Back to sign in</button>`);
+  }
+  function scrForgot() {
+    gate(`<h3>Reset your password</h3>
+      <p class="muted gp">We'll email you a code (or a reset button) to set a new password.</p>
+      <div class="field"><label>Email</label><input id="gEmail" type="email" autocomplete="email" placeholder="you@example.com" /></div>
+      <p id="gMsg" class="muted gm"></p>
+      <button class="btn gold gw" onclick="Cloud.sendReset()">Send code</button>
+      <p class="glink" onclick="Cloud.scrAuth('in')">Back to sign in</p>`);
+  }
+  async function sendReset() {
+    const email = val('gEmail').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return gmsg('Enter a valid email address.', true);
+    gbusy(true); gmsg('Sending code…');
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+    gbusy(false);
+    if (error) return gmsg(friendly(error), true);
+    scrReset(email);
+  }
+  function scrReset(email) {
+    gate(`<h3>Enter your code</h3>
+      <p class="muted gp">If <b style="color:var(--txt)">${esc(email)}</b> has an Atlas FinServ account, a reset email is on its way. Enter the code from it with your new password.</p>
+      <p class="muted gp" style="font-size:12px">If the email has a <b>Reset password</b> button instead of a code, tap it — Atlas FinServ opens and asks for your new password there.</p>
+      <div class="field"><label>Code</label><input id="gCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456" /></div>
+      <div class="field"><label>New password</label><input id="gPass" type="password" autocomplete="new-password" placeholder="At least ${PW_MIN} characters" /></div>
+      <div class="field"><label>Confirm new password</label><input id="gPass2" type="password" autocomplete="new-password" /></div>
+      <p id="gMsg" class="muted gm"></p>
+      <button class="btn gold gw" onclick="Cloud.doReset('${esc(email)}')">Set new password</button>
+      <p class="glink" onclick="Cloud.scrForgot()">Resend code</p>
+      <p class="glink" onclick="Cloud.scrAuth('in')">Back to sign in</p>`);
+  }
+  async function doReset(email) {
+    const code = val('gCode').replace(/\s/g, ''), pw = val('gPass');
+    if (!/^\d{6,10}$/.test(code)) return gmsg('Enter the code from the email.', true);
+    if (pw.length < PW_MIN) return gmsg(`Use a password of at least ${PW_MIN} characters.`, true);
+    if (pw !== val('gPass2')) return gmsg('The passwords don\'t match.', true);
+    gbusy(true); gmsg('Checking code…');
+    recovering = true;
+    try {
+      const { data, error } = await sb.auth.verifyOtp({ email, token: code, type: 'recovery' });
+      if (error) { recovering = false; gbusy(false); return gmsg(/expired|invalid/i.test(error.message) ? 'That code is wrong or has expired.' : friendly(error), true); }
+      const up = await sb.auth.updateUser({ password: pw });
+      if (up.error) { gbusy(false); return gmsg(friendly(up.error), true); }
+      user = data.user; lsSet(AUTH_V2, user.id); recovering = false;
+      toast('Password updated'); route();
+    } catch (e) { recovering = false; gbusy(false); gmsg(e.message || 'Something went wrong.', true); }
+  }
+  /* reached from the reset email's link (if the template still sends one) */
+  function scrNewPassword() {
+    gate(`<h3>Choose a new password</h3>
+      <div class="field"><label>New password</label><input id="gPass" type="password" autocomplete="new-password" placeholder="At least ${PW_MIN} characters" /></div>
+      <div class="field"><label>Confirm new password</label><input id="gPass2" type="password" autocomplete="new-password" /></div>
+      <p id="gMsg" class="muted gm"></p>
+      <button class="btn gold gw" onclick="Cloud.doNewPassword()">Save password</button>`);
+  }
+  async function doNewPassword() {
+    const pw = val('gPass');
+    if (pw.length < PW_MIN) return gmsg(`Use a password of at least ${PW_MIN} characters.`, true);
+    if (pw !== val('gPass2')) return gmsg('The passwords don\'t match.', true);
+    gbusy(true);
+    const { error } = await sb.auth.updateUser({ password: pw });
+    if (error) { gbusy(false); return gmsg(friendly(error), true); }
+    recovering = false; if (user) lsSet(AUTH_V2, user.id);
+    toast('Password updated'); route();
+  }
+
+  /* step 2 — owner approval */
+  function scrPending() {
+    gate(`<h3>Waiting for approval</h3>
+      <p class="muted gp">Your account <b style="color:var(--txt)">${esc(user.email)}</b> has been created and is waiting to be approved. This usually doesn't take long — check back soon.</p>
+      ${legacy ? '<p class="muted gp" style="font-size:12px">Your older data is still safe on this device and will be restored once you\'re approved.</p>' : ''}
+      <button class="btn gold gw" onclick="Cloud.route()">Check again</button>
+      <button class="btn gw" onclick="Cloud.signOut()">Sign out</button>`);
+    if (!notified) { notified = true; sb.functions.invoke('notify-signup', { body: {} }).catch(() => {}); }
+  }
+  function scrRejected() {
+    gate(`<h3>Account not approved</h3>
+      <p class="muted gp">The account <b style="color:var(--txt)">${esc(user.email)}</b> hasn't been approved for Atlas FinServ.</p>
+      <button class="btn gw" onclick="Cloud.signOut()">Sign out</button>`);
+  }
+
+  /* step 3 — one-time restore into the cloud */
+  let _row = null;
+  function scrRestore(row) {
+    _row = row;
+    const ld = legacyData(), cloudHas = row && !isEmpty(row.data);
+    const restored = row && row.data && row.data.meta && row.data.meta.cloudRestoreDone;
+    gate(`<h3>${restored ? 'Older data on this device' : 'Restore your data'}</h3>
+      <p class="muted gp">${restored
+        ? 'Your account already has its data in the cloud, but this device still holds an older copy from before the switch. Choose which to keep — you have the backup file either way.'
+        : 'One last step: bring your data into your account. This happens once — after this, Atlas FinServ saves straight to the cloud.'}</p>
+      <p id="gMsg" class="muted gm"></p>
+      ${cloudHas ? `<button class="btn ${restored ? 'gold' : ''} gw" onclick="Cloud.restore('cloud')">☁ Keep my cloud data (${countItems(row.data)} items · ${esc(row.device || 'saved')} ${ago(row.updated_at)})</button>` : ''}
+      ${ld ? `<button class="btn ${restored ? '' : 'gold'} gw" onclick="Cloud.restore('device')">↑ Restore from this device (${countItems(ld)} items)</button>` : ''}
+      <button class="btn gw" onclick="document.getElementById('gFile').click()">⤒ Restore from a backup file</button>
+      <input type="file" id="gFile" accept="application/json,.json" style="display:none" onchange="Cloud.restoreFile(this)" />
+      ${!cloudHas && !ld ? '<button class="btn gw" onclick="Cloud.restore(\'fresh\')">Start fresh</button>' : ''}`);
+  }
+  function restoreFile(input) {
+    const f = input.files && input.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      let d = null; try { d = JSON.parse(r.result); } catch (e) {}
+      input.value = '';
+      if (!d || !d.loans || !d.cards) return gmsg('That file isn\'t an Atlas FinServ backup.', true);
+      if (!confirm(`Restore ${countItems(d)} items from ${f.name}?`)) return;
+      commit(d);
+    };
+    r.readAsText(f);
+  }
+  function restore(which) {
+    if (which === 'cloud') return commit(_row.data);
+    if (which === 'device') return commit(legacyData());
+    if (which === 'fresh') { if (confirm('Start with an empty Atlas FinServ?')) commit(seed()); }
+  }
+  /* write the chosen copy to the cloud; only once that's confirmed is the device copy removed */
+  async function commit(data) {
+    if (!data) return;
+    gbusy(true); gmsg('Saving to your account…');
+    DB = JSON.parse(JSON.stringify(data)); normalise();
+    DB.meta.cloudRestoreDone = DB.meta.cloudRestoreDone || new Date().toISOString();
+    try {
+      const res = _row
+        ? await sb.from('atlas_state').update({ data: DB, device: device() }).eq('user_id', user.id).select('rev,updated_at').single()
+        : await sb.from('atlas_state').insert({ user_id: user.id, data: DB, device: device() }).select('rev,updated_at').single();
+      if (res.error) throw res.error;
+      rev = res.data.rev; lastSync = new Date().toISOString(); dirty = false; lastSig = sig();
+    } catch (e) {
+      DB = seed(); upgradeDB();
+      gbusy(false); return gmsg('Couldn\'t save to your account: ' + (e.message || 'network error') + '. Nothing was deleted — try again.', true);
+    }
+    wipeLegacy();
+    toast('Your data is in the cloud');
+    enter();
+  }
+  function wipeLegacy() { [LS_KEY, CLOUD_META, MIG_STAGE].forEach(lsDel); legacy = null; }
+
+  function enter() {
+    ready = true; VAULT = null; MASTER_KEY = null;
+    setState('ok'); ungate();
+    if (typeof onDataReady === 'function') onDataReady();
+  }
+
+  /* ---------- routing ---------- */
+  function showEntry() {
+    if (legacy && lsGet(MIG_STAGE) !== 'backedup') scrMigrate();
+    else scrAuth('in');
+  }
+  async function route() {
+    if (recovering) return;
+    if (!user) { ready = false; setState('off'); return showEntry(); }
+    if (legacy && lsGet(MIG_STAGE) !== 'backedup') return scrMigrate();
+    if (!navigator.onLine) return scrError('You\'re offline. Atlas FinServ needs an internet connection to open your account.');
+    scrLoading('Opening your account…');
+    const pr = await sb.from('profiles').select('status').eq('id', user.id).maybeSingle();
+    if (pr.error) return scrError('Atlas FinServ couldn\'t check your account right now (' + pr.error.message + ').');
+    const status = pr.data ? pr.data.status : 'pending';
+    if (status === 'rejected') return scrRejected();
+    if (status !== 'approved') return scrPending();
+    const st = await sb.from('atlas_state').select('data,rev,updated_at,device').eq('user_id', user.id).maybeSingle();
+    if (st.error) return scrError('Atlas FinServ couldn\'t load your data right now (' + st.error.message + ').');
+    const row = st.data;
+    const restored = row && row.data && row.data.meta && row.data.meta.cloudRestoreDone;
+    if (restored && !legacy) {
+      DB = row.data; normalise();
+      rev = row.rev; lastSync = new Date().toISOString(); dirty = false; lastSig = sig();
+      return enter();
+    }
+    scrRestore(row);
+  }
+
+  /* ---------- sync (only after the account's data is loaded) ---------- */
+  function touch() {
+    if (!ready || !user) return;
+    const s = sig();
+    if (s === lastSig) { if (state === 'dirty') setState('ok'); return; }
+    dirty = true; setState('dirty');
+    clearTimeout(timer); timer = setTimeout(push, 1500);
+  }
+  async function push() {
+    if (!ready || !user || busy || !dirty) return;
     if (!navigator.onLine) { setState('offline'); return; }
     busy = true; setState('syncing');
+    const s = sig();
     try {
-      const rev = meta().rev || 0;
-      let res;
-      if (!rev) {
-        res = await sb.from('atlas_state')
-          .insert({ user_id: user.id, data: DB, device: device() })
-          .select('rev,updated_at').single();
-        if (res.error && (res.error.code === '23505' || /duplicate/i.test(res.error.message || ''))) {
-          busy = false; return pull();
-        }
-      } else {
-        res = await sb.from('atlas_state')
-          .update({ data: DB, device: device() })
-          .eq('user_id', user.id).eq('rev', rev)
-          .select('rev,updated_at').maybeSingle();
-        if (!res.error && !res.data) {          // someone else moved the row on
-          busy = false; return pull();
-        }
-      }
+      const res = await sb.from('atlas_state').update({ data: DB, device: device() })
+        .eq('user_id', user.id).eq('rev', rev).select('rev,updated_at').maybeSingle();
       if (res.error) throw res.error;
-      setMeta({ rev: res.data.rev, dirty: false, sig: sig(), last: new Date().toISOString() });
-      setState('ok');
+      if (!res.data) { busy = false; return pull(); }     // another device moved the row on
+      rev = res.data.rev; lastSync = new Date().toISOString(); lastSig = s;
+      dirty = sig() !== s;                                 // edits made while saving go next
+      setState(dirty ? 'dirty' : 'ok');
+      if (dirty) { clearTimeout(timer); timer = setTimeout(push, 1500); }
     } catch (e) {
-      setMeta({ dirty: true });
-      setState(navigator.onLine ? 'err' : 'offline', e.message || 'Sync failed');
+      setState(navigator.onLine ? 'err' : 'offline', e.message || 'Save failed');
     } finally { busy = false; }
   }
-
   async function pull(announce) {
-    if (!user || busy) return;
+    if (!ready || !user || busy) return;
     if (!navigator.onLine) { setState('offline'); return; }
-    busy = true; setState('syncing');
+    busy = true; if (!dirty) setState('syncing');
     try {
       const { data, error } = await sb.from('atlas_state')
         .select('data,rev,updated_at,device').eq('user_id', user.id).maybeSingle();
       if (error) throw error;
-      const m = meta();
-      if (!data) { setMeta({ rev: 0 }); busy = false; return push(); }   // first device — seed the cloud
-      if (data.rev === (m.rev || 0)) {
-        busy = false;
-        if (m.dirty) return push();
-        setMeta({ last: new Date().toISOString() }); setState('ok');
-        if (announce) toast('Already up to date');
-        return;
-      }
-      if (data.rev > (m.rev || 0)) {
-        if (!m.rev && localIsEmpty()) { adopt(data); busy = false; toast('Loaded your data from cloud'); return; }
-        if (!m.rev) { busy = false; return firstRun(data); }
-        if (m.dirty) { busy = false; return conflict(data); }
-        adopt(data); if (announce) toast('Pulled the latest from cloud');
-        busy = false; return;
-      }
-      busy = false; return push();   // local ahead — shouldn't happen, but push wins
+      if (!data) throw new Error('Your cloud data is missing — sign out and back in.');
+      busy = false;
+      if (data.rev === rev) { if (dirty) return push(); lastSync = new Date().toISOString(); setState('ok'); if (announce) toast('Already up to date'); return; }
+      if (dirty) return conflict(data);
+      adopt(data); if (announce) toast('Loaded the latest from the cloud');
     } catch (e) {
-      setState(navigator.onLine ? 'err' : 'offline', e.message || 'Could not reach cloud');
+      setState(navigator.onLine ? 'err' : 'offline', e.message || 'Could not reach the cloud');
     } finally { busy = false; }
   }
-
   function adopt(row) {
-    DB = row.data; normalise(); saveLocal();
-    setMeta({ rev: row.rev, dirty: false, sig: sig(), last: new Date().toISOString() });
+    DB = row.data; normalise();
+    rev = row.rev; dirty = false; lastSig = sig(); lastSync = new Date().toISOString();
     VAULT = null; MASTER_KEY = null;          // vault re-unlocks with the PIN
     setState('ok'); render();
   }
 
-  /* ---------- conflict ---------- */
+  /* ---------- conflict (two devices edited at once) ---------- */
   let _conflict = null;
-  function firstRun(row) {
-    _conflict = row; setState('conflict');
-    modal('This device has its own data', `
-      <p class="muted" style="font-size:13px;margin-bottom:14px">Atlas already holds data on this device, and your account has a copy in the cloud
-      (last written from <b>${row.device || 'another device'}</b>, ${ago(row.updated_at)}). Which one should Atlas keep going forward?</p>
-      <button class="btn gold" style="width:100%;margin-bottom:10px" onclick="Cloud.resolve('cloud')">↓ Use the cloud copy</button>
-      <button class="btn" style="width:100%;margin-bottom:10px" onclick="Cloud.resolve('local')">↑ Upload what's on this device</button>
-      <button class="btn" style="width:100%" onclick="doBackup()">⤓ Download a backup first</button>`);
-  }
   function conflict(row) {
     _conflict = row; setState('conflict');
-    modal('Sync conflict', `
-      <p class="muted" style="font-size:13px;margin-bottom:14px">This device has changes that never reached the cloud, and the cloud copy has also moved on
-      (last written from <b>${row.device || 'another device'}</b>, ${ago(row.updated_at)}). Pick the one to keep — the other is archived in Supabase either way.</p>
-      <button class="btn gold" style="width:100%;margin-bottom:10px" onclick="Cloud.resolve('local')">↑ Keep this device's copy</button>
-      <button class="btn" style="width:100%;margin-bottom:10px" onclick="Cloud.resolve('cloud')">↓ Use the cloud copy</button>
+    modal('Changed on another device', `
+      <p class="muted" style="font-size:13px;margin-bottom:14px">This device has changes that weren't saved yet, and your account was also updated from <b>${esc(row.device || 'another device')}</b> ${ago(row.updated_at)}. Which one should Atlas FinServ keep?</p>
+      <button class="btn gold" style="width:100%;margin-bottom:10px" onclick="Cloud.resolve('local')">↑ Keep this device's version</button>
+      <button class="btn" style="width:100%;margin-bottom:10px" onclick="Cloud.resolve('cloud')">↓ Use the other device's version</button>
       <button class="btn" style="width:100%" onclick="doBackup()">⤓ Download a backup first</button>`);
   }
   function resolve(which) {
     if (!_conflict) return closeModal();
-    if (which === 'local') { setMeta({ rev: _conflict.rev }); _conflict = null; closeModal(); push(); toast('Uploading this device\'s copy'); }
-    else { adopt(_conflict); _conflict = null; closeModal(); toast('Cloud copy restored'); }
+    if (which === 'local') { rev = _conflict.rev; _conflict = null; closeModal(); dirty = true; push(); toast('Saving this device\'s version'); }
+    else { adopt(_conflict); _conflict = null; closeModal(); toast('Loaded the other device\'s version'); }
   }
 
-  /* ---------- auth ---------- */
-  async function doAuth(mode) {
-    const email = (document.getElementById('sbEmail') || {}).value || '';
-    const pw = (document.getElementById('sbPass') || {}).value || '';
-    const msg = document.getElementById('sbMsg');
-    if (!email.trim() || pw.length < 6) { if (msg) msg.textContent = 'Enter an email and a password of at least 6 characters.'; return; }
-    if (msg) msg.textContent = mode === 'up' ? 'Creating account…' : 'Signing in…';
-    try {
-      const { data, error } = mode === 'up'
-        ? await sb.auth.signUp({ email: email.trim(), password: pw })
-        : await sb.auth.signInWithPassword({ email: email.trim(), password: pw });
-      if (error) { if (msg) msg.textContent = error.message; return; }
-      if (mode === 'up' && !data.session) { if (msg) msg.textContent = 'Account created — confirm the link in your email, then sign in.'; return; }
-      closeModal(); toast(mode === 'up' ? 'Account created' : 'Signed in');
-    } catch (e) { if (msg) msg.textContent = e.message || 'Something went wrong.'; }
-  }
-
-  async function signOut() {
-    await sb.auth.signOut();
-    user = null; setMeta({ rev: 0, dirty: false, last: null, email: null });
-    setState('off'); closeModal(); toast('Signed out — data stays on this device');
-  }
-
-  /* ---------- panel ---------- */
+  /* ---------- account panel ---------- */
   function openPanel() {
-    if (!sb) { modal('Cloud Sync', '<p class="muted" style="font-size:13px">The Supabase library did not load. Check the connection and reopen Atlas.</p>'); return; }
-    const m = meta();
-    if (!user) {
-      modal('Cloud Sync', `
-        <p class="muted" style="font-size:13px;margin-bottom:16px">Sign in to sync Atlas across your devices. Everything is stored under your account only — the vault stays AES-encrypted, so cards and logins are unreadable server-side.</p>
-        <div class="field"><label>Email</label><input id="sbEmail" type="email" autocomplete="email" placeholder="you@example.com" /></div>
-        <div class="field"><label>Password</label><input id="sbPass" type="password" autocomplete="current-password" placeholder="••••••••" /></div>
-        <p id="sbMsg" class="muted" style="font-size:12px;min-height:16px;margin:2px 0 12px"></p>
-        <button class="btn gold" style="width:100%;margin-bottom:10px" onclick="Cloud.doAuth('in')">Sign in</button>
-        <button class="btn" style="width:100%" onclick="Cloud.doAuth('up')">Create account</button>`);
-      return;
-    }
-    modal('Cloud Sync', `
-      <p class="muted" style="font-size:13px;margin-bottom:6px">Signed in as <b style="color:var(--txt)">${user.email}</b></p>
-      <p class="muted" style="font-size:12.5px;margin-bottom:16px">Status: ${state === 'ok' ? 'synced' : state} · last sync ${ago(m.last)} · version ${m.rev || 0}${lastErr ? '<br><span style="color:var(--red)">' + lastErr + '</span>' : ''}</p>
-      <button class="btn gold" style="width:100%;margin-bottom:10px" onclick="Cloud.syncNow()">⟳ Sync now</button>
-      <button class="btn" style="width:100%;margin-bottom:10px" onclick="Cloud.forcePull()">↓ Replace this device with the cloud copy</button>
+    if (!sb || !user || !ready) return;
+    modal('Account', `
+      <p class="muted" style="font-size:13px;margin-bottom:6px">Signed in as <b style="color:var(--txt)">${esc(user.email)}</b></p>
+      <p class="muted" style="font-size:12.5px;margin-bottom:16px">Your data is stored in your Atlas FinServ cloud account. Status: ${state === 'ok' ? 'saved' : state} · last saved ${ago(lastSync)}${lastErr ? '<br><span style="color:var(--red)">' + esc(lastErr) + '</span>' : ''}</p>
+      <button class="btn gold" style="width:100%;margin-bottom:10px" onclick="Cloud.syncNow()">⟳ Save &amp; refresh now</button>
+      <button class="btn" style="width:100%;margin-bottom:10px" onclick="Cloud.changePassword()">Change password</button>
       <button class="btn" style="width:100%" onclick="Cloud.signOut()">Sign out</button>`);
   }
-  async function syncNow() { closeModal(); setMeta({ dirty: true }); await pull(true); }
-  async function forcePull() {
-    closeModal(); setMeta({ dirty: false });
-    const { data } = await sb.from('atlas_state').select('data,rev,updated_at').eq('user_id', user.id).maybeSingle();
-    if (data) { adopt(data); toast('Restored from cloud'); } else toast('Nothing in the cloud yet');
+  async function syncNow() { closeModal(); if (dirty) await push(); else await pull(true); }
+  function changePassword() {
+    modal('Change password', `
+      <div class="field"><label>New password</label><input id="gPass" type="password" autocomplete="new-password" placeholder="At least ${PW_MIN} characters" /></div>
+      <div class="field"><label>Confirm new password</label><input id="gPass2" type="password" autocomplete="new-password" /></div>
+      <p id="pwMsg" class="muted" style="font-size:12px;min-height:16px;margin:2px 0 12px"></p>
+      <button class="btn gold" style="width:100%" onclick="Cloud.savePassword()">Save password</button>`);
+  }
+  async function savePassword() {
+    const pw = val('gPass'), m = document.getElementById('pwMsg');
+    if (pw.length < PW_MIN) { m.textContent = `Use at least ${PW_MIN} characters.`; return; }
+    if (pw !== val('gPass2')) { m.textContent = 'The passwords don\'t match.'; return; }
+    const { error } = await sb.auth.updateUser({ password: pw });
+    if (error) { m.textContent = friendly(error); return; }
+    closeModal(); toast('Password updated');
+  }
+  async function signOut() {
+    if (ready && dirty) {
+      await push();
+      if (dirty && !confirm('Some changes haven\'t reached the cloud yet and will be lost. Sign out anyway?')) return;
+    }
+    closeModal();
+    try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+    user = null; ready = false; rev = 0; dirty = false; notified = false;
+    DB = seed(); upgradeDB(); VAULT = null; MASTER_KEY = null;
+    try { sessionStorage.removeItem('atlasUnlocked'); } catch (e) {}
+    const lk = document.getElementById('applock'); if (lk) lk.remove();
+    render(); setState('off'); showEntry();
   }
 
   /* ---------- boot ---------- */
   function init() {
     if (booted) return; booted = true;
-    if (!window.supabase || !window.supabase.createClient) { setState('off'); return; }
-    sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+    if (!window.supabase || !window.supabase.createClient) {
+      return gate('<h3>Atlas FinServ</h3><p class="muted gp">Atlas FinServ couldn\'t load. Check your internet connection and reopen the app.</p><button class="btn gold gw" onclick="location.reload()">Reload</button>');
+    }
+    scrLoading('Loading…');
+    // a session arriving via an email link (confirm / reset) is a fresh sign-in, not a pre-cloud leftover
+    const fromLink = /access_token=|type=(signup|recovery|magiclink|invite)/.test(location.hash);
+    sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
     sb.auth.onAuthStateChange((evt, session) => {
-      const was = user && user.id;
-      user = session ? session.user : null;
-      if (user) {
-        setMeta({ email: user.email });
-        if (user.id !== was) { setState('syncing'); pull(); }
-      } else setState('off');
+      const nu = session ? session.user : null;
+      if (evt === 'PASSWORD_RECOVERY') { user = nu; recovering = true; return setTimeout(scrNewPassword, 0); }
+      if (evt === 'INITIAL_SESSION') {
+        user = nu;
+        if (fromLink && user) { lsSet(AUTH_V2, user.id); history.replaceState(null, '', location.pathname); }
+        // everyone signed in under the old setup is signed out once and goes through the new flow
+        if (user && lsGet(AUTH_V2) !== user.id) {
+          user = null;
+          setTimeout(() => sb.auth.signOut({ scope: 'local' }).catch(() => {}).then(route), 0);
+          return;
+        }
+        return setTimeout(route, 0);
+      }
+      if (evt === 'TOKEN_REFRESHED' || evt === 'USER_UPDATED') { if (nu) user = nu; return; }
+      if ((nu && nu.id) !== (user && user.id)) { user = nu; if (!recovering) setTimeout(route, 0); }
     });
-    sb.auth.getSession().then(({ data }) => {
-      user = data.session ? data.session.user : null;
-      if (user) pull(); else setState('off');
-    });
-    window.addEventListener('online', () => { if (user) meta().dirty ? push() : pull(); });
-    window.addEventListener('offline', () => { if (user) setState('offline'); });
+    window.addEventListener('online', () => { if (ready) dirty ? push() : pull(); });
+    window.addEventListener('offline', () => { if (ready) setState('offline'); });
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState !== 'visible' || !user) return;
-      meta().dirty ? push() : pull();
+      if (!ready) return;
+      if (document.visibilityState === 'visible') dirty ? push() : pull();
+      else if (dirty) push();
     });
-    setInterval(() => { if (user && meta().dirty) push(); }, 60000);
+    window.addEventListener('beforeunload', e => { if (ready && dirty) { push(); e.preventDefault(); e.returnValue = ''; } });
+    setInterval(() => { if (ready && dirty) push(); }, 30000);
   }
 
-  return { init, touch, push, pull, openPanel, doAuth, signOut, syncNow, forcePull, resolve, paint,
-           get state() { return state; }, get email() { return user ? user.email : null; } };
+  return { init, touch, push, pull, route, openPanel, doAuth, scrAuth, scrForgot, sendReset, doReset, doNewPassword,
+           migBackup, migContinue, restore, restoreFile, syncNow, changePassword, savePassword, signOut, resolve, paint,
+           get state() { return state; }, get ready() { return ready; }, get email() { return user ? user.email : null; } };
 })();
 
 /* boot */
@@ -3038,14 +3294,20 @@ function nudges(){
   if(DB.goals&&DB.goals.length){if(!last)out.push("You haven't logged any savings yet — even a small amount counts.");else{const d=daysTo(last);if(d!=null&&-d>21)out.push(`No savings logged in ${-d} days — keep the streak going.`);}}
   return out;
 }
-snapshotNW();
 document.body.dataset.view='home';
 var _v=document.getElementById('verLbl');if(_v)_v.textContent='v'+APP_VERSION;
 render();
-if(DB.meta.lastSeenVersion==null){DB.meta.lastSeenVersion=APP_VERSION;save();}
-else if(cmpVer(APP_VERSION,DB.meta.lastSeenVersion)>0){DB.meta.lastSeenVersion=APP_VERSION;save();setTimeout(()=>showWhatsNew(false),500);}
-if(DB.meta.pinHash){let u=false;try{u=sessionStorage.getItem('atlasUnlocked')==='1';}catch(e){}if(u)APP_UNLOCKED=true;else showAppLock();}
-maybeAutoBackup();
+/* runs each time an account's data has been loaded from the cloud */
+function onDataReady(){
+  document.body.dataset.view='home';
+  snapshotNW();
+  render();
+  if(DB.meta.lastSeenVersion==null){DB.meta.lastSeenVersion=APP_VERSION;save();}
+  else if(cmpVer(APP_VERSION,DB.meta.lastSeenVersion)>0){DB.meta.lastSeenVersion=APP_VERSION;save();setTimeout(()=>showWhatsNew(false),500);}
+  APP_UNLOCKED=false;
+  if(DB.meta.pinHash){let u=false;try{u=sessionStorage.getItem('atlasUnlocked')==='1';}catch(e){}if(u)APP_UNLOCKED=true;else showAppLock();}
+  maybeAutoBackup();
+}
 $('#cloudBtn').addEventListener('click',()=>Cloud.openPanel());
 Cloud.init();
 </script>
