@@ -1,6 +1,6 @@
 {
-  "name": "Atlas — Financial Command Centre",
-  "short_name": "Atlas",
+  "name": "Atlas FinServ — Financial Command Centre",
+  "short_name": "Atlas FinServ",
   "description": "Personal financial command centre — debts, cards, net worth, goals and an encrypted vault.",
   "start_url": ".",
   "scope": ".",

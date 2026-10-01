@@ -1,8 +1,8 @@
-# Atlas cloud accounts — go-live checklist
+# Atlas FinServ cloud accounts — go-live checklist
 
 Do these **before** merging this branch into `main`. Production
 (atlasfinserv.vercel.app) deploys from `main`. If the new app goes live before
-the backend is ready, users see "Can't reach Atlas". Their data stays on their
+the backend is ready, users see "Can't reach Atlas FinServ". Their data stays on their
 phone and nothing is lost, but they can't use the app until setup is done.
 
 ## 1. Restore the Supabase project
@@ -41,7 +41,7 @@ supabase functions deploy approve-signup --no-verify-jwt
   1. Turn on 2-Step Verification for that Google account, then create an
      **App password** at myaccount.google.com/apppasswords.
   2. **Emails → SMTP Settings → Enable custom SMTP**:
-     sender email `atlasstudiopvtltd@gmail.com`, sender name `Atlas`,
+     sender email `atlasstudiopvtltd@gmail.com`, sender name `Atlas FinServ`,
      host `smtp.gmail.com`, port `465`, username `atlasstudiopvtltd@gmail.com`,
      password = the 16-character app password.
   3. **Rate Limits**: raise "emails sent per hour" (e.g. 30).
@@ -49,13 +49,13 @@ supabase functions deploy approve-signup --no-verify-jwt
   Redirect URLs, add `https://atlasfinserv.vercel.app/**` and `https://*-rizwan3.vercel.app/**`.
 - **Emails → Reset Password** template (editable once SMTP is on). Replace the body with:
   ```html
-  <h2>Reset your Atlas password</h2>
+  <h2>Reset your Atlas FinServ password</h2>
   <p>Your code is:</p>
   <p style="font-size:28px;letter-spacing:4px"><b>{{ .Token }}</b></p>
-  <p>Enter it in Atlas with your new password. It expires in 1 hour.</p>
+  <p>Enter it in Atlas FinServ with your new password. It expires in 1 hour.</p>
   ```
   If you keep the default template (a button), reset still works: the button
-  opens Atlas and asks for the new password there.
+  opens Atlas FinServ and asks for the new password there.
 - **Confirm email**: either setting works. With it on, new users tap a link in their email before signing in.
 
 ## 6. Test on the Vercel preview, then merge

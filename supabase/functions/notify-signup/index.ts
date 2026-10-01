@@ -7,7 +7,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const ADMIN_EMAIL = Deno.env.get("ADMIN_EMAIL") ?? "atlasstudiopvtltd@gmail.com";
 const APP_URL = (Deno.env.get("APP_URL") ?? "https://atlasfinserv.vercel.app").replace(/\/$/, "");
-const FROM = Deno.env.get("RESEND_FROM") ?? "Atlas <onboarding@resend.dev>";
+const FROM = Deno.env.get("RESEND_FROM") ?? "Atlas FinServ <onboarding@resend.dev>";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -54,9 +54,9 @@ Deno.serve(async (req) => {
     body: JSON.stringify({
       from: FROM,
       to: [ADMIN_EMAIL],
-      subject: `Atlas: approve new account — ${user.email}`,
+      subject: `Atlas FinServ: approve new account — ${user.email}`,
       html: `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5">
-        <p>A new Atlas account is waiting for approval:</p>
+        <p>A new Atlas FinServ account is waiting for approval:</p>
         <p style="font-size:17px"><b>${email}</b><br><span style="color:#777;font-size:13px">created ${new Date(user.created_at).toUTCString()}</span></p>
         <p><a href="${link}" style="display:inline-block;background:#c9a86a;color:#1a1206;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:600">Review &amp; approve</a></p>
         <p style="color:#777;font-size:12px">The link opens a page where you choose Approve or Reject. Don't forward this email — anyone with the link can decide on this account.</p>

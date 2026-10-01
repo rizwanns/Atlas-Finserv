@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex" />
-<title>Atlas — Approve account</title>
+<title>Atlas FinServ — Approve account</title>
 <link rel="icon" href="icon-192.png" />
 <style>
 :root{--bg:#0a0a0b;--card:#141416;--line:rgba(255,255,255,.12);--txt:#ece9e3;--muted:#7e786e;--gold:#c9a86a;--green:#79b394;--red:#d98b86}
@@ -22,7 +22,7 @@ button:disabled{opacity:.5;cursor:default}
 </style>
 </head>
 <body>
-<div class="card" id="c"><h1>Atlas</h1><p>Loading…</p></div>
+<div class="card" id="c"><h1>Atlas FinServ</h1><p>Loading…</p></div>
 <script>
 "use strict";
 const FN = 'https://jsyneevpqafuveaninxm.supabase.co/functions/v1/approve-signup';
@@ -37,18 +37,18 @@ async function call(action) {
   return d;
 }
 function show(d, note) {
-  c.innerHTML = `<h1>New Atlas account</h1>
+  c.innerHTML = `<h1>New Atlas FinServ account</h1>
     <p><b>${esc(d.email)}</b><br>created ${new Date(d.created_at).toLocaleString('en-IN')}</p>
     <p><span class="st ${esc(d.status)}">${esc(d.status)}</span></p>
     ${note ? `<p>${esc(note)}</p>` : ''}
     ${d.status !== 'approved' ? '<button class="ok" onclick="act(\'approve\')">Approve</button>' : ''}
     ${d.status !== 'rejected' ? '<button onclick="act(\'reject\')">Reject</button>' : ''}`;
 }
-function fail(e) { c.innerHTML = `<h1>Atlas</h1><p>${esc(e.message || e)}</p>`; }
+function fail(e) { c.innerHTML = `<h1>Atlas FinServ</h1><p>${esc(e.message || e)}</p>`; }
 async function act(a) {
   if (a === 'reject' && !confirm('Reject this account?')) return;
   c.querySelectorAll('button').forEach(b => b.disabled = true);
-  try { const d = await call(a); show(d, a === 'approve' ? 'Approved — they can open Atlas now.' : 'Rejected.'); } catch (e) { fail(e); }
+  try { const d = await call(a); show(d, a === 'approve' ? 'Approved — they can open Atlas FinServ now.' : 'Rejected.'); } catch (e) { fail(e); }
 }
 if (!u || !t) fail('This link is incomplete.'); else call().then(d => show(d)).catch(fail);
 </script>
