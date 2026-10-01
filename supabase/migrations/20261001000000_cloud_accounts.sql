@@ -108,3 +108,13 @@ create policy "atlas_state: approved only" on public.atlas_state
   with check ((select public.is_approved()));
 
 revoke all on public.atlas_state from anon;
+
+-- the pre-existing atlas_snapshots history table (written by the atlas_state rev
+-- trigger) is also only readable by approved accounts
+do $$ begin
+  if to_regclass('public.atlas_snapshots') is not null then
+    execute 'drop policy if exists "atlas_snapshots: approved only" on public.atlas_snapshots';
+    execute 'create policy "atlas_snapshots: approved only" on public.atlas_snapshots
+               as restrictive for all to authenticated using ((select public.is_approved()))';
+  end if;
+end $$;

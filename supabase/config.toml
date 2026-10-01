@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.approve-signup]
 verify_jwt = false
+
+[functions.delete-account]
+verify_jwt = true
