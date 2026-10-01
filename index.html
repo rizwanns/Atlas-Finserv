@@ -902,6 +902,7 @@ function vPerson(){
     <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn sm gold" onclick="addEntry('${p.id}','out')">↑ I gave money</button>
       <button class="btn sm" onclick="addEntry('${p.id}','in')">↓ I got money</button>
+      <button class="btn sm" onclick="sendStatement('${p.id}')">📤 Send statement</button>
       <button class="btn sm" onclick="editPerson('${p.id}')">Edit</button>
       <button class="btn sm danger" onclick="delPerson('${p.id}')">Delete</button>
     </div>`;
@@ -922,6 +923,102 @@ function vPerson(){
   const note=el('div','card');note.style.marginTop='16px';
   note.innerHTML=`<div class="muted" style="font-size:12px"><b>Green (+)</b> = money you gave ${p.name} (raises what they owe you, or clears what you owed). <b>Red (−)</b> = money you got from ${p.name} (raises what you owe, or clears what they owed). The net at top is the single number that matters.</div>`;
   main.appendChild(note);
+}
+/* ---- SEND STATEMENT (image → share sheet / WhatsApp) ---- */
+const STMT_MAX_ROWS=120;
+function myName(){const n=((DB.profile||{}).name||'').trim();return /^atlas( finserv)?$/i.test(n)?'':n;}
+function sendStatement(id){
+  const p=(DB.people||[]).find(x=>x.id===id);if(!p)return;
+  if(!(p.entries||[]).length){toast('No transactions to send yet');return;}
+  if(!myName()){
+    modal('Your name',`<p class="muted" style="font-size:12.5px;margin-bottom:12px">Shown on the statement so ${p.name} knows who it's from. Asked only once.</p>
+      <div class="field"><label>Your name</label><input id="myNm" placeholder="e.g. Rizwan"></div>
+      <button class="btn gold" style="width:100%" onclick="saveMyName('${id}')">Continue</button>`);
+    return;
+  }
+  previewStatement(p);
+}
+function saveMyName(id){const n=($('#myNm').value||'').trim();if(!n){toast('Enter your name');return;}DB.profile=DB.profile||{};DB.profile.name=n;save();sendStatement(id);}
+let _stmtFile=null;
+async function previewStatement(p){
+  modal('Statement — '+p.name,'<p class="muted" style="font-size:13px">Preparing image…</p>');
+  try{if(document.fonts&&document.fonts.ready)await document.fonts.ready;}catch(e){}
+  const canvas=drawStatement(p);
+  const blob=await new Promise(r=>canvas.toBlob(r,'image/png'));
+  const fname='Statement-'+p.name.replace(/[^A-Za-z0-9]+/g,'-')+'-'+new Date().toISOString().slice(0,10)+'.png';
+  _stmtFile=new File([blob],fname,{type:'image/png'});
+  const url=URL.createObjectURL(blob);
+  const canShare=!!(navigator.canShare&&navigator.canShare({files:[_stmtFile]}));
+  modal('Statement — '+p.name,`
+    <img src="${url}" alt="Statement preview" style="width:100%;border-radius:12px;border:1px solid var(--line2);display:block;margin-bottom:14px">
+    ${canShare
+      ?`<button class="btn gold" style="width:100%;margin-bottom:10px" onclick="shareStatement()">📤 Share (choose WhatsApp)</button>`
+      :`<p class="muted" style="font-size:12px;margin-bottom:10px">This browser can't share images directly. Save the image, then attach it in WhatsApp.</p>`}
+    <button class="btn" style="width:100%" onclick="saveStatementImg('${url}')">⤓ Save image</button>`);
+}
+async function shareStatement(){
+  if(!_stmtFile)return;
+  try{await navigator.share({files:[_stmtFile],title:_stmtFile.name});closeModal();}
+  catch(e){if(e&&e.name!=='AbortError')toast('Could not share — use Save image instead');}
+}
+function saveStatementImg(url){const a=document.createElement('a');a.href=url;a.download=_stmtFile?_stmtFile.name:'statement.png';a.click();toast('Image saved');}
+function drawStatement(p){
+  const me=myName(),cur=p.cur;
+  const asc=[...(p.entries||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  let bal=0;const all=asc.map(e=>{bal+=e.dir==='out'?e.amount:-e.amount;return {e,bal};});
+  const rows=all.slice(-STMT_MAX_ROWS),skipped=all.length-rows.length,net=bal;
+  const gave=sumBy(asc.filter(e=>e.dir==='out'),e=>e.amount),got=sumBy(asc.filter(e=>e.dir==='in'),e=>e.amount);
+  const W=1080,PAD=56,ROW=78,HEAD=530,TH=60,FOOT=150+(skipped?40:0);
+  const H=HEAD+TH+rows.length*ROW+FOOT;
+  const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  const SANS='Outfit, system-ui, sans-serif',SERIF='Fraunces, Georgia, serif';
+  const money=n=>fmtC(Math.abs(n),cur);
+  const dt=d=>d?new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'';
+  const fit=(t,max)=>{t=String(t||'');if(x.measureText(t).width<=max)return t;while(t.length&&x.measureText(t+'…').width>max)t=t.slice(0,-1);return t+'…';};
+  // background + header band
+  x.fillStyle='#ffffff';x.fillRect(0,0,W,H);
+  x.fillStyle='#14110b';x.fillRect(0,0,W,250);
+  x.fillStyle='#c9a86a';x.fillRect(0,250,W,6);
+  x.fillStyle='#e3c98c';x.font=`600 30px ${SANS}`;x.fillText('ACCOUNT STATEMENT',PAD,78);
+  x.fillStyle='#ffffff';x.font=`700 56px ${SERIF}`;x.fillText(fit(me+'  ⇄  '+p.name,W-2*PAD),PAD,152);
+  x.fillStyle='#b6b1a8';x.font=`400 28px ${SANS}`;
+  x.fillText(`${asc.length} transaction${asc.length===1?'':'s'} · ${dt(asc[0].date)} – ${dt(asc[asc.length-1].date)} · ${cc(cur)}`,PAD,205);
+  // balance box
+  const owe=net>0?`${p.name} owes ${me}`:net<0?`${me} owes ${p.name}`:'All settled';
+  const col=net>0?'#2e7d4f':net<0?'#b3423a':'#555555';
+  x.fillStyle='#f6f2ea';if(x.roundRect){x.beginPath();x.roundRect(PAD,290,W-2*PAD,200,22);x.fill();}else x.fillRect(PAD,290,W-2*PAD,200);
+  x.fillStyle='#6b665d';x.font=`500 26px ${SANS}`;x.fillText('BALANCE',PAD+30,338);
+  x.fillStyle='#222';x.font=`600 34px ${SANS}`;x.fillText(fit(owe,W-2*PAD-60),PAD+30,392);
+  if(net!==0){x.fillStyle=col;x.font=`700 58px ${SANS}`;x.fillText(money(net),PAD+30,460);}
+  x.fillStyle='#6b665d';x.font=`400 24px ${SANS}`;x.textAlign='right';
+  x.fillText(`${me} gave ${money(gave)} · received ${money(got)}`,W-PAD-30,338);x.textAlign='left';
+  // table header
+  let y=HEAD;const cD=PAD,cT=PAD+200,cA=W-PAD-230,cB=W-PAD;
+  x.fillStyle='#14110b';x.fillRect(PAD,y,W-2*PAD,TH);
+  x.fillStyle='#ffffff';x.font=`600 24px ${SANS}`;
+  x.fillText('Date',cD+16,y+39);x.fillText('Details',cT,y+39);
+  x.textAlign='right';x.fillText('Amount',cA,y+39);x.fillText('Balance',cB-16,y+39);x.textAlign='left';
+  y+=TH;
+  rows.forEach((r,i)=>{
+    const out=r.e.dir==='out';
+    if(i%2){x.fillStyle='#faf8f4';x.fillRect(PAD,y,W-2*PAD,ROW);}
+    x.fillStyle='#222';x.font=`500 25px ${SANS}`;x.fillText(dt(r.e.date),cD+16,y+36);
+    x.fillText(out?'Paid':'Received',cT,y+36);
+    const sub=[r.e.mode&&r.e.mode!=='—'?r.e.mode:'',r.e.note||''].filter(Boolean).join(' · ');
+    if(sub){x.fillStyle='#8a857c';x.font=`400 21px ${SANS}`;x.fillText(fit(sub,cA-cT-190),cT,y+64);}
+    x.textAlign='right';
+    x.fillStyle=out?'#2e7d4f':'#b3423a';x.font=`600 26px ${SANS}`;x.fillText((out?'+':'−')+money(r.e.amount),cA,y+44);
+    x.fillStyle=r.bal>0?'#2e7d4f':r.bal<0?'#b3423a':'#555';x.font=`500 24px ${SANS}`;
+    x.fillText(r.bal===0?'0':(r.bal>0?'':'−')+money(r.bal),cB-16,y+44);x.textAlign='left';
+    x.fillStyle='#ece8e0';x.fillRect(PAD,y+ROW-1,W-2*PAD,1);
+    y+=ROW;
+  });
+  // footer
+  y+=30;x.fillStyle='#8a857c';x.font=`400 22px ${SANS}`;
+  if(skipped){x.fillText(`Showing the latest ${rows.length} of ${all.length} transactions.`,PAD,y);y+=40;}
+  x.fillText(fit(`+ = paid by ${me}   ·   − = received by ${me}`,W-2*PAD),PAD,y);
+  x.fillText('Generated '+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})+' with Atlas FinServ',PAD,y+40);
+  return c;
 }
 const PAY_MODES=['Cash','Bank','UPI','Cheque','Gold','Other'];
 function addPerson(){modal('Add person',`
@@ -1598,6 +1695,7 @@ function saveClaim(id){const c=DB.chits.find(x=>x.id===id);const amt=+$('#cla').
 
 /* ---- WHAT'S NEW ---- */
 const CHANGELOG=[
+ {v:'1.23.0',notes:['<b>Send statement</b> — open any person in Debts &amp; Dues and tap “📤 Send statement”. Atlas FinServ makes a clean image of your full history with them and the balance, ready to share on WhatsApp.']},
  {v:'1.22.0',notes:['<b>Atlas FinServ is now cloud-based.</b> Your data lives in your own secure Atlas FinServ account instead of only on this phone, so it is safe if you lose or change devices. Sign in with your email and password.','New accounts are reviewed before they can be used.','Forgot your password? Tap “Forgot password?” on the sign-in screen and we\'ll email you a code to set a new one.','Your Card and Login Vaults stay encrypted with your PIN — the server only ever stores scrambled data.','Atlas FinServ now needs an internet connection to open.']},
  {v:'1.19.6',notes:[
    'Each subscription and bill now has a ⏰ button — tap it to drop that one item’s due date straight into your phone’s calendar with alerts 2 days before, 1 day before, and on the day. (The Cash-Flow Forecast still has the “add everything” reminder button too.)'
@@ -2747,7 +2845,7 @@ $('#fileIn').addEventListener('change',e=>{
 });
 
 /* PWA: register service worker + notify user when a new version is ready */
-const APP_VERSION='1.22.0';
+const APP_VERSION='1.23.0';
 let _swWaiting=null;
 function doUpdate(){if(_swWaiting){_swWaiting.postMessage('SKIP_WAITING');}else{location.reload();}}
 function dismissUpdate(){document.getElementById('updateBanner').classList.remove('show');}
