@@ -43,7 +43,10 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("RESEND_API_KEY");
   if (!key) return json({ error: "RESEND_API_KEY is not set" }, 500);
 
-  const link = `${APP_URL}/approve.html?u=${user.id}&t=${tok.token}`;
+  // link back to the deployment the user signed up on (production or one of our Vercel previews)
+  const origin = req.headers.get("Origin") ?? "";
+  const base = /^https:\/\/atlas-[a-z0-9-]+-rizwan3\.vercel\.app$/.test(origin) ? origin : APP_URL;
+  const link = `${base}/approve.html?u=${user.id}&t=${tok.token}`;
   const email = esc(user.email ?? "(no email)");
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
