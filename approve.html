@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Atlas — Approve account</title>
+<link rel="icon" href="icon-192.png" />
+<style>
+:root{--bg:#0a0a0b;--card:#141416;--line:rgba(255,255,255,.12);--txt:#ece9e3;--muted:#7e786e;--gold:#c9a86a;--green:#79b394;--red:#d98b86}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.card{max-width:380px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px 22px;text-align:center}
+h1{font-family:Georgia,serif;font-size:22px;margin-bottom:10px}
+p{color:var(--muted);font-size:14px;line-height:1.5;margin-bottom:16px}
+b{color:var(--txt)}
+button{width:100%;border:1px solid var(--line);background:#1a1a1d;color:var(--txt);border-radius:12px;padding:12px;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:10px}
+button.ok{background:var(--gold);color:#1a1206;border-color:var(--gold)}
+button:disabled{opacity:.5;cursor:default}
+.st{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+.pending{background:rgba(201,168,106,.15);color:var(--gold)}.approved{background:rgba(121,179,148,.15);color:var(--green)}.rejected{background:rgba(217,139,134,.15);color:var(--red)}
+</style>
+</head>
+<body>
+<div class="card" id="c"><h1>Atlas</h1><p>Loading…</p></div>
+<script>
+"use strict";
+const FN = 'https://jsyneevpqafuveaninxm.supabase.co/functions/v1/approve-signup';
+const KEY = 'sb_publishable_vOqZyaK3OQPuFJdAD-TAMA_iTnZEzGc';
+const q = new URLSearchParams(location.search), u = q.get('u'), t = q.get('t');
+const c = document.getElementById('c');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, x => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[x]));
+async function call(action) {
+  const r = await fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify({ u, t, action }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+  return d;
+}
+function show(d, note) {
+  c.innerHTML = `<h1>New Atlas account</h1>
+    <p><b>${esc(d.email)}</b><br>created ${new Date(d.created_at).toLocaleString('en-IN')}</p>
+    <p><span class="st ${esc(d.status)}">${esc(d.status)}</span></p>
+    ${note ? `<p>${esc(note)}</p>` : ''}
+    ${d.status !== 'approved' ? '<button class="ok" onclick="act(\'approve\')">Approve</button>' : ''}
+    ${d.status !== 'rejected' ? '<button onclick="act(\'reject\')">Reject</button>' : ''}`;
+}
+function fail(e) { c.innerHTML = `<h1>Atlas</h1><p>${esc(e.message || e)}</p>`; }
+async function act(a) {
+  if (a === 'reject' && !confirm('Reject this account?')) return;
+  c.querySelectorAll('button').forEach(b => b.disabled = true);
+  try { const d = await call(a); show(d, a === 'approve' ? 'Approved — they can open Atlas now.' : 'Rejected.'); } catch (e) { fail(e); }
+}
+if (!u || !t) fail('This link is incomplete.'); else call().then(d => show(d)).catch(fail);
+</script>
+</body>
+</html>

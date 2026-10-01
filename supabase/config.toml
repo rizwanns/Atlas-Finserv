@@ -1,0 +1,7 @@
+project_id = "jsyneevpqafuveaninxm"
+
+[functions.notify-signup]
+verify_jwt = true
+
+[functions.approve-signup]
+verify_jwt = false
