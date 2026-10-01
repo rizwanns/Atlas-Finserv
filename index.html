@@ -2954,7 +2954,7 @@ var Cloud = (function () {
   }
   function scrForgot() {
     gate(`<h3>Reset your password</h3>
-      <p class="muted gp">We'll email you a 6-digit code to set a new password.</p>
+      <p class="muted gp">We'll email you a code (or a reset button) to set a new password.</p>
       <div class="field"><label>Email</label><input id="gEmail" type="email" autocomplete="email" placeholder="you@example.com" /></div>
       <p id="gMsg" class="muted gm"></p>
       <button class="btn gold gw" onclick="Cloud.sendReset()">Send code</button>
@@ -2971,7 +2971,8 @@ var Cloud = (function () {
   }
   function scrReset(email) {
     gate(`<h3>Enter your code</h3>
-      <p class="muted gp">If <b style="color:var(--txt)">${esc(email)}</b> has an Atlas account, a 6-digit code is on its way. Enter it with your new password.</p>
+      <p class="muted gp">If <b style="color:var(--txt)">${esc(email)}</b> has an Atlas account, a reset email is on its way. Enter the code from it with your new password.</p>
+      <p class="muted gp" style="font-size:12px">If the email has a <b>Reset password</b> button instead of a code, tap it — Atlas opens and asks for your new password there.</p>
       <div class="field"><label>Code</label><input id="gCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456" /></div>
       <div class="field"><label>New password</label><input id="gPass" type="password" autocomplete="new-password" placeholder="At least ${PW_MIN} characters" /></div>
       <div class="field"><label>Confirm new password</label><input id="gPass2" type="password" autocomplete="new-password" /></div>

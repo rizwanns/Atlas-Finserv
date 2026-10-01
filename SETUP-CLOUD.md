@@ -34,18 +34,29 @@ supabase functions deploy approve-signup --no-verify-jwt
 `approve-signup` must have **JWT verification off**. The secret token in the email link is what protects it.
 
 ## 5. Auth settings (Supabase → Authentication)
-- **URL Configuration → Site URL**: `https://atlasfinserv.vercel.app`
-  (add the Vercel preview URL under Redirect URLs if you want to test the preview).
-- **Emails → Reset Password** template: replace the body so it sends a code:
+- **Custom SMTP (required).** Without it, Supabase only sends auth emails to
+  your own team members, about 2 an hour, so users never get confirmation or
+  reset emails. The templates also stay locked.
+  Use the atlasstudiopvtltd@gmail.com Gmail account:
+  1. Turn on 2-Step Verification for that Google account, then create an
+     **App password** at myaccount.google.com/apppasswords.
+  2. **Emails → SMTP Settings → Enable custom SMTP**:
+     sender email `atlasstudiopvtltd@gmail.com`, sender name `Atlas`,
+     host `smtp.gmail.com`, port `465`, username `atlasstudiopvtltd@gmail.com`,
+     password = the 16-character app password.
+  3. **Rate Limits**: raise "emails sent per hour" (e.g. 30).
+- **URL Configuration → Site URL**: `https://atlasfinserv.vercel.app`. Under
+  Redirect URLs, add `https://atlasfinserv.vercel.app/**` and `https://*-rizwan3.vercel.app/**`.
+- **Emails → Reset Password** template (editable once SMTP is on). Replace the body with:
   ```html
   <h2>Reset your Atlas password</h2>
   <p>Your code is:</p>
   <p style="font-size:28px;letter-spacing:4px"><b>{{ .Token }}</b></p>
   <p>Enter it in Atlas with your new password. It expires in 1 hour.</p>
   ```
+  If you keep the default template (a button), reset still works: the button
+  opens Atlas and asks for the new password there.
 - **Confirm email**: either setting works. With it on, new users tap a link in their email before signing in.
-- **SMTP**: Supabase's built-in mailer only sends a few auth emails per hour.
-  For more than a handful of users, set up custom SMTP (Resend provides SMTP too).
 
 ## 6. Test on the Vercel preview, then merge
 1. Sign in as yourself. You're approved automatically, so you'll get the restore step.
