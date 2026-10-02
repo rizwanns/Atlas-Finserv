@@ -2,7 +2,7 @@
    network-first: always try the newest deploy, fall back to cache offline.
    skipWaiting + clients.claim => a new deploy activates immediately and the
    page reloads itself (via controllerchange) to show the new version. */
-const CACHE = 'atlas-cache-v46';
+const CACHE = 'atlas-cache-v47';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-180.png', './supabase.js'];
 
 self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });

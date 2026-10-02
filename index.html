@@ -1695,6 +1695,7 @@ function saveClaim(id){const c=DB.chits.find(x=>x.id===id);const amt=+$('#cla').
 
 /* ---- WHAT'S NEW ---- */
 const CHANGELOG=[
+ {v:'1.23.2',notes:['New accounts no longer need approval — sign up and you\'re straight in.']},
  {v:'1.23.0',notes:['<b>Send statement</b> — open any person in Debts &amp; Dues and tap “📤 Send statement”. Atlas FinServ makes a clean image of your full history with them and the balance, ready to share on WhatsApp.']},
  {v:'1.22.0',notes:['<b>Atlas FinServ is now cloud-based.</b> Your data lives in your own secure Atlas FinServ account instead of only on this phone, so it is safe if you lose or change devices. Sign in with your email and password.','New accounts are reviewed before they can be used.','Forgot your password? Tap “Forgot password?” on the sign-in screen and we\'ll email you a code to set a new one.','Your Card and Login Vaults stay encrypted with your PIN — the server only ever stores scrambled data.','Atlas FinServ now needs an internet connection to open.']},
  {v:'1.19.6',notes:[
@@ -2845,7 +2846,7 @@ $('#fileIn').addEventListener('change',e=>{
 });
 
 /* PWA: register service worker + notify user when a new version is ready */
-const APP_VERSION='1.23.1';
+const APP_VERSION='1.23.2';
 let _swWaiting=null;
 function doUpdate(){if(_swWaiting){_swWaiting.postMessage('SKIP_WAITING');}else{location.reload();}}
 function dismissUpdate(){document.getElementById('updateBanner').classList.remove('show');}
@@ -2874,7 +2875,7 @@ document.addEventListener('contextmenu',function(e){if(!e.target.closest('input,
 
 
 /* ============================================================
-   CLOUD — Supabase accounts (email + password), owner-approved
+   CLOUD — Supabase accounts (email + password)
    The entire DB object lives as a single row in atlas_state and
    is only held in memory on the device. The vault stays AES-GCM
    encrypted inside it, so the server only ever holds ciphertext
@@ -2883,7 +2884,8 @@ document.addEventListener('contextmenu',function(e){if(!e.target.closest('input,
    Flow on open:
      legacy local data, no backup yet → migration gate (forced backup)
      no session / pre-cloud session   → sign in / create account / forgot password
-     signed in, not approved          → waiting screen (owner gets an email)
+     signed in, put on hold by owner  → waiting / not-approved screen
+                                        (new accounts are approved automatically)
      approved, first cloud login      → one-time restore (this device / file / cloud)
      approved                         → app, cloud-only from here on
    ============================================================ */
@@ -2900,7 +2902,7 @@ var Cloud = (function () {
   let rev = 0, dirty = false, lastSync = null, lastSig = '';
   let legacy = LEGACY_RAW;                // pre-cloud copy still on this device
   let recovering = false;                 // mid password-reset: don't route on SIGNED_IN
-  let notified = false, gateBackupTaken = false;
+  let gateBackupTaken = false;
 
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
@@ -3010,7 +3012,7 @@ var Cloud = (function () {
   function scrAuth(mode) {
     const up = mode === 'up';
     gate(`<h3>${up ? 'Create your account' : 'Sign in to Atlas FinServ'}</h3>
-      <p class="muted gp">${up ? 'New accounts are reviewed before they can be used. You\'ll be able to bring your data across once approved.' : 'Use the email and password for your Atlas FinServ account.'}</p>
+      <p class="muted gp">${up ? 'Create an account to keep your data safe in the cloud and use it on any device.' : 'Use the email and password for your Atlas FinServ account.'}</p>
       <div class="field"><label>Email</label><input id="gEmail" type="email" autocomplete="email" placeholder="you@example.com" /></div>
       <div class="field"><label>Password</label><input id="gPass" type="password" autocomplete="${up ? 'new-password' : 'current-password'}" placeholder="${up ? 'At least ' + PW_MIN + ' characters' : '••••••••'}" /></div>
       ${up ? '<div class="field"><label>Confirm password</label><input id="gPass2" type="password" autocomplete="new-password" /></div>' : ''}
@@ -3032,8 +3034,6 @@ var Cloud = (function () {
         ? await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.origin + location.pathname } })
         : await sb.auth.signInWithPassword({ email, password: pw });
       if (error) { gbusy(false); return gmsg(friendly(error), true); }
-      // tell the owner straight away — the user may not confirm/sign in for a while
-      if (mode === 'up' && data.user) sb.functions.invoke('notify-signup', { body: { user_id: data.user.id } }).catch(() => {});
       if (mode === 'up' && !data.session) return scrConfirm(email);
       lsSet(AUTH_V2, data.user.id);
       // onAuthStateChange routes from here
@@ -3123,7 +3123,6 @@ var Cloud = (function () {
       ${legacy ? '<p class="muted gp" style="font-size:12px">Your older data is still safe on this device and will be restored once you\'re approved.</p>' : ''}
       <button class="btn gold gw" onclick="Cloud.route()">Check again</button>
       <button class="btn gw" onclick="Cloud.signOut()">Sign out</button>`);
-    if (!notified) { notified = true; sb.functions.invoke('notify-signup', { body: {} }).catch(() => {}); }
   }
   function scrRejected() {
     gate(`<h3>Account not approved</h3>
@@ -3320,7 +3319,7 @@ var Cloud = (function () {
     }
     closeModal();
     try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
-    user = null; ready = false; rev = 0; dirty = false; notified = false;
+    user = null; ready = false; rev = 0; dirty = false;
     DB = seed(); upgradeDB(); VAULT = null; MASTER_KEY = null;
     try { sessionStorage.removeItem('atlasUnlocked'); } catch (e) {}
     const lk = document.getElementById('applock'); if (lk) lk.remove();
