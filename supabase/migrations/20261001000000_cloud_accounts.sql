@@ -118,3 +118,16 @@ do $$ begin
                as restrictive for all to authenticated using ((select public.is_approved()))';
   end if;
 end $$;
+
+-- 2026-10-02: owner approval switched off. New accounts are approved on creation;
+-- the owner can still put an account on hold by setting profiles.status.
+create or replace function public.handle_new_user() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  insert into public.profiles (id, email, status, decided_at)
+  values (new.id, lower(new.email), 'approved', now())
+  on conflict (id) do nothing;
+  insert into public.signup_tokens (user_id) values (new.id) on conflict (user_id) do nothing;
+  return new;
+end $$;
+update public.profiles set status = 'approved', decided_at = coalesce(decided_at, now()) where status = 'pending';
