@@ -1,5 +1,5 @@
 // Emails the owner when a signed-in account is still waiting for approval.
-// Called by the app (with the user's session) from the "Waiting for approval" screen.
+// Called by the app right after sign-up and again from the "Waiting for approval" screen.
 // Sends at most one email per account (signup_tokens.notified_at).
 //
 // Secrets: RESEND_API_KEY (required), ADMIN_EMAIL, APP_URL, RESEND_FROM (optional)
@@ -16,6 +16,7 @@ const cors = {
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 
 Deno.serve(async (req) => {
@@ -26,9 +27,20 @@ Deno.serve(async (req) => {
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
     auth: { persistSession: false },
   });
-  const { data: u, error: uErr } = await admin.auth.getUser(jwt);
-  if (uErr || !u.user) return json({ error: "not signed in" }, 401);
-  const user = u.user;
+  // Signed in → that user. Right after sign-up (no session yet while the email is
+  // unconfirmed) → the new user's id from the body, accepted only for accounts
+  // created in the last 30 minutes. Either way at most one email per account.
+  let user = (await admin.auth.getUser(jwt)).data.user;
+  if (!user) {
+    let body: { user_id?: string } = {};
+    try { body = await req.json(); } catch { /* no body */ }
+    if (!body.user_id || !UUID.test(body.user_id)) return json({ error: "not signed in" }, 401);
+    const { data } = await admin.auth.admin.getUserById(body.user_id);
+    if (!data.user || Date.now() - new Date(data.user.created_at).getTime() > 30 * 60 * 1000) {
+      return json({ ok: true, sent: false });
+    }
+    user = data.user;
+  }
 
   // accounts created before the migration may lack rows — create them
   await admin.from("profiles").upsert({ id: user.id, email: (user.email ?? "").toLowerCase() }, { onConflict: "id", ignoreDuplicates: true });
@@ -57,7 +69,7 @@ Deno.serve(async (req) => {
       subject: `Atlas FinServ: approve new account — ${user.email}`,
       html: `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5">
         <p>A new Atlas FinServ account is waiting for approval:</p>
-        <p style="font-size:17px"><b>${email}</b><br><span style="color:#777;font-size:13px">created ${new Date(user.created_at).toUTCString()}</span></p>
+        <p style="font-size:17px"><b>${email}</b><br><span style="color:#777;font-size:13px">created ${new Date(user.created_at).toUTCString()}${user.email_confirmed_at ? "" : " · email not confirmed yet"}</span></p>
         <p><a href="${link}" style="display:inline-block;background:#c9a86a;color:#1a1206;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:600">Review &amp; approve</a></p>
         <p style="color:#777;font-size:12px">The link opens a page where you choose Approve or Reject. Don't forward this email — anyone with the link can decide on this account.</p>
       </div>`,

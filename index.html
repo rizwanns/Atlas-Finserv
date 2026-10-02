@@ -2845,7 +2845,7 @@ $('#fileIn').addEventListener('change',e=>{
 });
 
 /* PWA: register service worker + notify user when a new version is ready */
-const APP_VERSION='1.23.0';
+const APP_VERSION='1.23.1';
 let _swWaiting=null;
 function doUpdate(){if(_swWaiting){_swWaiting.postMessage('SKIP_WAITING');}else{location.reload();}}
 function dismissUpdate(){document.getElementById('updateBanner').classList.remove('show');}
@@ -3032,6 +3032,8 @@ var Cloud = (function () {
         ? await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.origin + location.pathname } })
         : await sb.auth.signInWithPassword({ email, password: pw });
       if (error) { gbusy(false); return gmsg(friendly(error), true); }
+      // tell the owner straight away — the user may not confirm/sign in for a while
+      if (mode === 'up' && data.user) sb.functions.invoke('notify-signup', { body: { user_id: data.user.id } }).catch(() => {});
       if (mode === 'up' && !data.session) return scrConfirm(email);
       lsSet(AUTH_V2, data.user.id);
       // onAuthStateChange routes from here
